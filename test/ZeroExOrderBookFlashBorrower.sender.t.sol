@@ -24,7 +24,7 @@ contract MockOrderBook is IOrderBookV1 {
     }
 
     function takeOrders(TakeOrdersConfig calldata config) external returns (uint256 totalInput, uint256 totalOutput) {
-        return (0, 0)
+        return (0, 0);
     }
 
     function addOrder(OrderConfig calldata config) external {}
@@ -49,7 +49,7 @@ contract Mock0xProxy {
 }
 
 contract ZeroExOrderBookFlashBorrowerTest is Test {
-    function testTakeOrdersSender(address alice_) public {
+    function testTakeOrdersSender() public {
         MockOrderBook ob_ = new MockOrderBook();
         Mock0xProxy proxy_ = new Mock0xProxy();
 
@@ -60,7 +60,6 @@ contract ZeroExOrderBookFlashBorrowerTest is Test {
             address(ob_), address(proxy_)
         ));
 
-        vm.startPrank(alice_);
         arb_.arb(
             TakeOrdersConfig(
                 address(output_), address(input_), 0, type(uint256).max, type(uint256).max, new TakeOrderConfig[](0)
@@ -69,4 +68,7 @@ contract ZeroExOrderBookFlashBorrowerTest is Test {
             ""
         );
     }
+
+    // Allow receiving funds at end of arb.
+    fallback() external { }
 }

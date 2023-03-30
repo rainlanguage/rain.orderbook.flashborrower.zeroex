@@ -10,8 +10,6 @@ import "rain.interface.orderbook/ierc3156/IERC3156FlashLender.sol";
 import "rain.interface.orderbook/ierc3156/IERC3156FlashBorrower.sol";
 import "rain.interface.orderbook/IOrderBookV1.sol";
 
-import "forge-std/console2.sol";
-
 /// Thrown when the lender is not the trusted `OrderBook`.
 /// @param badLender The untrusted lender calling `onFlashLoan`.
 error BadLender(address badLender);
@@ -134,7 +132,16 @@ contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ReentrancyGuard 
             revert FlashLoanFailed();
         }
 
-        console2.log("foo", address(this), msg.sender);
+        // Send all unspent input tokens to the sender.
+        uint256 inputBalance_ = IERC20(takeOrders_.input).balanceOf(address(this));
+        if (inputBalance_ > 0) {
+            IERC20(takeOrders_.input).safeTransfer(msg.sender, inputBalance_);
+        }
+        // Send all unspent output tokens to the sender.
+        uint256 outputBalance_ = IERC20(takeOrders_.output).balanceOf(address(this));
+        if (outputBalance_ > 0) {
+            IERC20(takeOrders_.output).safeTransfer(msg.sender, outputBalance_);
+        }
 
         // Send all unspent 0x protocol fees to the sender.
         // Slither false positive here. This is near verbatim from the reference
@@ -147,18 +154,7 @@ contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ReentrancyGuard 
         // If for some strange reason you send tokens or ETH directly to this
         // contract other than for the intended purpose, expect your funds to be
         // immediately drained by the next caller.
-        payable(msg.sender).transfer(address(this).balance);
-
-        // Send all unspent input tokens to the sender.
-        uint256 inputBalance_ = IERC20(takeOrders_.input).balanceOf(address(this));
-        if (inputBalance_ > 0) {
-            IERC20(takeOrders_.input).safeTransfer(msg.sender, inputBalance_);
-        }
-        // Send all unspent output tokens to the sender.
-        uint256 outputBalance_ = IERC20(takeOrders_.output).balanceOf(address(this));
-        if (outputBalance_ > 0) {
-            IERC20(takeOrders_.output).safeTransfer(msg.sender, outputBalance_);
-        }
+        Address.sendValue(payable(msg.sender), address(this).balance);
     }
 
     /// Allow receiving gas.
