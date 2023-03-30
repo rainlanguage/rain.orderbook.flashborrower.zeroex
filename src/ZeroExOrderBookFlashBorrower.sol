@@ -10,6 +10,8 @@ import "rain.interface.orderbook/ierc3156/IERC3156FlashLender.sol";
 import "rain.interface.orderbook/ierc3156/IERC3156FlashBorrower.sol";
 import "rain.interface.orderbook/IOrderBookV1.sol";
 
+import "forge-std/console2.sol";
+
 /// Thrown when the lender is not the trusted `OrderBook`.
 /// @param badLender The untrusted lender calling `onFlashLoan`.
 error BadLender(address badLender);
@@ -51,10 +53,7 @@ struct ZeroExOrderBookFlashBorrowerConfig {
 /// - Sell the 100 USDT for 102 DAI on 0x
 /// - Take the order, giving 101 DAI and having 100 USDT loan forgiven
 /// - Keep 1 DAI profit
-contract ZeroExOrderBookFlashBorrower is
-    IERC3156FlashBorrower,
-    ReentrancyGuard
-{
+contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ReentrancyGuard {
     using Address for address;
     using SafeERC20 for IERC20;
 
@@ -70,13 +69,10 @@ contract ZeroExOrderBookFlashBorrower is
     }
 
     /// @inheritdoc IERC3156FlashBorrower
-    function onFlashLoan(
-        address initiator_,
-        address,
-        uint256,
-        uint256,
-        bytes calldata data_
-    ) external returns (bytes32) {
+    function onFlashLoan(address initiator_, address, uint256, uint256, bytes calldata data_)
+        external
+        returns (bytes32)
+    {
         if (msg.sender != address(orderBook)) {
             revert BadLender(msg.sender);
         }
@@ -84,15 +80,11 @@ contract ZeroExOrderBookFlashBorrower is
             revert BadInitiator(initiator_);
         }
 
-        (TakeOrdersConfig memory takeOrders_, bytes memory zeroExData_) = abi
-            .decode(data_, (TakeOrdersConfig, bytes));
+        (TakeOrdersConfig memory takeOrders_, bytes memory zeroExData_) = abi.decode(data_, (TakeOrdersConfig, bytes));
 
         // Call the encoded swap function call on the contract at `swapTarget`,
         // passing along any ETH attached to this function call to cover protocol fees.
-        zeroExExchangeProxy.functionCallWithValue(
-            zeroExData_,
-            address(this).balance
-        );
+        zeroExExchangeProxy.functionCallWithValue(zeroExData_, address(this).balance);
 
         // At this point 0x should have sent the tokens required to match the
         // orders so take orders now.
@@ -117,11 +109,10 @@ contract ZeroExOrderBookFlashBorrower is
     /// spend tokens for the external trade.
     /// @param zeroExData_ Data provided by the 0x API to complete the external
     /// trade as preapproved by 0x.
-    function arb(
-        TakeOrdersConfig calldata takeOrders_,
-        address zeroExSpender_,
-        bytes calldata zeroExData_
-    ) external nonReentrant {
+    function arb(TakeOrdersConfig calldata takeOrders_, address zeroExSpender_, bytes calldata zeroExData_)
+        external
+        nonReentrant
+    {
         // This data needs to be encoded so that it can be passed to the
         // `onFlashLoan` callback.
         bytes memory data_ = abi.encode(takeOrders_, zeroExData_);
@@ -135,21 +126,15 @@ contract ZeroExOrderBookFlashBorrower is
         // This is overkill to infinite approve every time.
         // @todo make this hammer smaller.
         IERC20(takeOrders_.output).safeApprove(address(orderBook), 0);
-        IERC20(takeOrders_.output).safeIncreaseAllowance(
-            address(orderBook),
-            type(uint256).max
-        );
+        IERC20(takeOrders_.output).safeIncreaseAllowance(address(orderBook), type(uint256).max);
         IERC20(takeOrders_.input).safeApprove(zeroExSpender_, 0);
-        IERC20(takeOrders_.input).safeIncreaseAllowance(
-            zeroExSpender_,
-            type(uint256).max
-        );
+        IERC20(takeOrders_.input).safeIncreaseAllowance(zeroExSpender_, type(uint256).max);
 
-        if (
-            !orderBook.flashLoan(this, flashLoanToken_, flashLoanAmount_, data_)
-        ) {
+        if (!orderBook.flashLoan(this, flashLoanToken_, flashLoanAmount_, data_)) {
             revert FlashLoanFailed();
         }
+
+        console2.log("foo", address(this), msg.sender);
 
         // Send all unspent 0x protocol fees to the sender.
         // Slither false positive here. This is near verbatim from the reference
@@ -165,18 +150,17 @@ contract ZeroExOrderBookFlashBorrower is
         payable(msg.sender).transfer(address(this).balance);
 
         // Send all unspent input tokens to the sender.
-        uint256 inputBalance_ = IERC20(takeOrders_.input).balanceOf(
-            address(this)
-        );
+        uint256 inputBalance_ = IERC20(takeOrders_.input).balanceOf(address(this));
         if (inputBalance_ > 0) {
             IERC20(takeOrders_.input).safeTransfer(msg.sender, inputBalance_);
         }
         // Send all unspent output tokens to the sender.
-        uint256 outputBalance_ = IERC20(takeOrders_.output).balanceOf(
-            address(this)
-        );
+        uint256 outputBalance_ = IERC20(takeOrders_.output).balanceOf(address(this));
         if (outputBalance_ > 0) {
             IERC20(takeOrders_.output).safeTransfer(msg.sender, outputBalance_);
         }
     }
+
+    /// Allow receiving gas.
+    fallback() external { }
 }
