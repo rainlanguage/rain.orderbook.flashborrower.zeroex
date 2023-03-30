@@ -3,6 +3,7 @@ pragma solidity =0.8.18;
 
 import "forge-std/Test.sol";
 import "../src/ZeroExOrderBookFlashBorrower.sol";
+import "openzeppelin-contracts/contracts/proxy/Clones.sol";
 import "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import "rain.interface.orderbook/IOrderBookV1.sol";
 
@@ -23,7 +24,7 @@ contract MockOrderBook is IOrderBookV1 {
         return true;
     }
 
-    function takeOrders(TakeOrdersConfig calldata config) external returns (uint256 totalInput, uint256 totalOutput) {
+    function takeOrders(TakeOrdersConfig calldata) external pure returns (uint256 totalInput, uint256 totalOutput) {
         return (0, 0);
     }
 
@@ -58,9 +59,17 @@ contract ZeroExOrderBookFlashBorrowerTest is Test {
         Token input_ = new Token();
         Token output_ = new Token();
 
-        ZeroExOrderBookFlashBorrower arb_ = new ZeroExOrderBookFlashBorrower(ZeroExOrderBookFlashBorrowerConfig(
-            address(ob_), address(proxy_)
-        ));
+        ZeroExOrderBookFlashBorrower arb_ =
+            ZeroExOrderBookFlashBorrower(Clones.clone(address(new ZeroExOrderBookFlashBorrower())));
+        arb_.initialize(
+            abi.encode(
+                ZeroExOrderBookFlashBorrowerConfig(
+                    address(ob_),
+                    address(proxy_),
+                    EvaluableConfig(IExpressionDeployerV1(address(0)), new bytes[](0), new uint256[](0))
+                )
+            )
+        );
 
         arb_.arb(
             TakeOrdersConfig(

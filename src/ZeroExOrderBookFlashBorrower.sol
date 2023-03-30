@@ -11,6 +11,7 @@ import "rain.interface.orderbook/ierc3156/IERC3156FlashLender.sol";
 import "rain.interface.orderbook/ierc3156/IERC3156FlashBorrower.sol";
 import "rain.interface.orderbook/IOrderBookV1.sol";
 import "rain.interface.factory/ICloneableV1.sol";
+import "rain.interface.interpreter/LibEncodedDispatch.sol";
 
 /// Thrown when the lender is not the trusted `OrderBook`.
 /// @param badLender The untrusted lender calling `onFlashLoan`.
@@ -34,7 +35,7 @@ struct ZeroExOrderBookFlashBorrowerConfig {
 
 SourceIndex constant BEFORE_ARB_SOURCE_INDEX = SourceIndex.wrap(0);
 uint256 constant BEFORE_ARB_MIN_OUTPUTS = 0;
-uint256 constant BEFORE_ARB_MAX_OUTPUTS = 0;
+uint16 constant BEFORE_ARB_MAX_OUTPUTS = 0;
 
 /// @title ZeroExOrderBookFlashBorrower
 /// @notice Based on the 0x reference swap implementation
@@ -78,20 +79,22 @@ contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, Re
     }
 
     function initialize(bytes memory data_) external initializer {
-        ZeroExOrderBookFlashBorrowerConfig memory config_ = abi.decode(data_, ZeroExOrderBookFlashBorrowerConfig);
+        (ZeroExOrderBookFlashBorrowerConfig memory config_) = abi.decode(data_, (ZeroExOrderBookFlashBorrowerConfig));
         orderBook = IOrderBookV1(config_.orderBook);
         zeroExExchangeProxy = config_.zeroExExchangeProxy;
 
-        emit Initialize(msg.sender);
+        emit Initialize(msg.sender, config_);
 
-        address expression_;
-        uint256[] memory entrypoints_ = new uint256[](1);
-        // 0 outputs.
-        entrypoints_[SourceIndex.unwrap(BEFORE_ARB_SOURCE_INDEX)] = BEFORE_ARB_MIN_OUTPUTS;
-        (interpreter, store, expression_) = config_.deployer.deployExpression(
-            config_.evaluableConfig.sources, config_.evaluableConfig.constants, entrypoints_
-        );
-        dispatch = LibEncodedDispatch.encode(expression_, BEFORE_ARB_SOURCE_INDEX, BEFORE_ARB_MAX_OUTPUTS);
+        if (config_.evaluableConfig.sources.length > 0 && config_.evaluableConfig.sources[0].length > 0) {
+            address expression_;
+            uint256[] memory entrypoints_ = new uint256[](1);
+            // 0 outputs.
+            entrypoints_[SourceIndex.unwrap(BEFORE_ARB_SOURCE_INDEX)] = BEFORE_ARB_MIN_OUTPUTS;
+            (interpreter, store, expression_) = config_.evaluableConfig.deployer.deployExpression(
+                config_.evaluableConfig.sources, config_.evaluableConfig.constants, entrypoints_
+            );
+            dispatch = LibEncodedDispatch.encode(expression_, BEFORE_ARB_SOURCE_INDEX, BEFORE_ARB_MAX_OUTPUTS);
+        }
     }
 
     /// @inheritdoc IERC3156FlashBorrower
