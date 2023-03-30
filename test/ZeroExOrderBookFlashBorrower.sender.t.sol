@@ -45,7 +45,9 @@ contract MockOrderBook is IOrderBookV1 {
 }
 
 contract Mock0xProxy {
-    fallback() external { Address.sendValue(payable(msg.sender), address(this).balance); }
+    fallback() external {
+        Address.sendValue(payable(msg.sender), address(this).balance);
+    }
 }
 
 contract ZeroExOrderBookFlashBorrowerTest is Test {
@@ -70,5 +72,5 @@ contract ZeroExOrderBookFlashBorrowerTest is Test {
     }
 
     // Allow receiving funds at end of arb.
-    fallback() external { }
+    fallback() external {}
 }

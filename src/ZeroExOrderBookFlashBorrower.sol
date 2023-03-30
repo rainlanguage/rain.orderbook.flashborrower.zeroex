@@ -5,10 +5,12 @@ import {Address} from "openzeppelin-contracts/contracts/utils/Address.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "openzeppelin-contracts/contracts/security/ReentrancyGuard.sol";
+import {Initializable} from "openzeppelin-contracts/contracts/proxy/utils/Initializable.sol";
 
 import "rain.interface.orderbook/ierc3156/IERC3156FlashLender.sol";
 import "rain.interface.orderbook/ierc3156/IERC3156FlashBorrower.sol";
 import "rain.interface.orderbook/IOrderBookV1.sol";
+import "rain.interface.factory/ICloneableV1.sol";
 
 /// Thrown when the lender is not the trusted `OrderBook`.
 /// @param badLender The untrusted lender calling `onFlashLoan`.
@@ -27,7 +29,12 @@ error FlashLoanFailed();
 struct ZeroExOrderBookFlashBorrowerConfig {
     address orderBook;
     address zeroExExchangeProxy;
+    EvaluableConfig evaluableConfig;
 }
+
+SourceIndex constant BEFORE_ARB_SOURCE_INDEX = SourceIndex.wrap(0);
+uint256 constant BEFORE_ARB_MIN_OUTPUTS = 0;
+uint256 constant BEFORE_ARB_MAX_OUTPUTS = 0;
 
 /// @title ZeroExOrderBookFlashBorrower
 /// @notice Based on the 0x reference swap implementation
@@ -51,19 +58,40 @@ struct ZeroExOrderBookFlashBorrowerConfig {
 /// - Sell the 100 USDT for 102 DAI on 0x
 /// - Take the order, giving 101 DAI and having 100 USDT loan forgiven
 /// - Keep 1 DAI profit
-contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ReentrancyGuard {
+contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, ReentrancyGuard, Initializable {
     using Address for address;
     using SafeERC20 for IERC20;
 
+    event Initialize(address sender, ZeroExOrderBookFlashBorrowerConfig config);
+
     /// `OrderBook` contract to lend and arb against.
-    IOrderBookV1 public immutable orderBook;
+    IOrderBookV1 public orderBook;
     /// 0x exchange proxy as per reference implementation.
-    address public immutable zeroExExchangeProxy;
+    address public zeroExExchangeProxy;
+    IInterpreterV1 interpreter;
+    IInterpreterStoreV1 store;
+    EncodedDispatch dispatch;
 
     /// Initialize immutable contracts to arb and trade against.
-    constructor(ZeroExOrderBookFlashBorrowerConfig memory config_) {
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(bytes memory data_) external initializer {
+        ZeroExOrderBookFlashBorrowerConfig memory config_ = abi.decode(data_, ZeroExOrderBookFlashBorrowerConfig);
         orderBook = IOrderBookV1(config_.orderBook);
         zeroExExchangeProxy = config_.zeroExExchangeProxy;
+
+        emit Initialize(msg.sender);
+
+        address expression_;
+        uint256[] memory entrypoints_ = new uint256[](1);
+        // 0 outputs.
+        entrypoints_[SourceIndex.unwrap(BEFORE_ARB_SOURCE_INDEX)] = BEFORE_ARB_MIN_OUTPUTS;
+        (interpreter, store, expression_) = config_.deployer.deployExpression(
+            config_.evaluableConfig.sources, config_.evaluableConfig.constants, entrypoints_
+        );
+        dispatch = LibEncodedDispatch.encode(expression_, BEFORE_ARB_SOURCE_INDEX, BEFORE_ARB_MAX_OUTPUTS);
     }
 
     /// @inheritdoc IERC3156FlashBorrower
@@ -158,5 +186,5 @@ contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ReentrancyGuard 
     }
 
     /// Allow receiving gas.
-    fallback() external { }
+    fallback() external {}
 }
