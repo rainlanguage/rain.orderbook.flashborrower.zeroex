@@ -11,8 +11,9 @@ optimizer_runs = 100000
 
 fuzz.runs = 1024
 
-[profile.default.model_checker]
-contracts = {'src/LibQAKitMemory.sol' = ['LibQAKitMemory']}
-engine = 'chc'
-timeout = 10000
-targets = ['assert', 'underflow', 'overflow', 'divByZero', 'constantCondition', 'popEmptyArray', 'outOfBounds']
+# Too many false positives on OZ deps.
+# [profile.default.model_checker]
+# contracts = {'src/ZeroExOrderBookFlashBorrower.sol' = ['ZeroExOrderBookFlashBorrower']}
+# engine = 'chc'
+# timeout = 10000
+# targets = ['assert', 'underflow', 'overflow', 'divByZero', 'constantCondition', 'popEmptyArray', 'outOfBounds']
