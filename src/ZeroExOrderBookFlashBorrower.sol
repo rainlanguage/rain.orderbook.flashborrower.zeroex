@@ -155,7 +155,16 @@ contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, Re
 
         EncodedDispatch dispatch_ = dispatch;
         if (EncodedDispatch.unwrap(dispatch_) > 0) {
-            interpreter.eval(store, DEFAULT_STATE_NAMESPACE, dispatch_, LibContext.build(new uint256[][](0), new uint256[](0), new SignedContext[](0)));
+            (uint256[] memory stack_, uint256[] memory kvs_) = interpreter.eval(
+                store,
+                DEFAULT_STATE_NAMESPACE,
+                dispatch_,
+                LibContext.build(new uint256[][](0), new uint256[](0), new SignedContext[](0))
+            );
+            require(stack_.length == 0);
+            if (kvs_.length > 0) {
+                store.set(DEFAULT_STATE_NAMESPACE, kvs_);
+            }
         }
 
         // This is overkill to infinite approve every time.
