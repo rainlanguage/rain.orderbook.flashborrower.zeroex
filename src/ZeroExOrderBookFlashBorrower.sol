@@ -121,6 +121,7 @@ contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, Re
         // We don't do anything with the total input/output amounts here because
         // the flash loan itself will take back what it needs, and we simply
         // keep anything left over according to active balances.
+        //slither-disable-next-line unused-return
         orderBook.takeOrders(takeOrders_);
 
         return ON_FLASH_LOAN_CALLBACK_SUCCESS;
