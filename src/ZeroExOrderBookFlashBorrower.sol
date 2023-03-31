@@ -94,6 +94,11 @@ contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, Re
             uint256[] memory entrypoints_ = new uint256[](1);
             // 0 outputs.
             entrypoints_[SourceIndex.unwrap(BEFORE_ARB_SOURCE_INDEX)] = BEFORE_ARB_MIN_OUTPUTS;
+            // We have to trust the deployer because it produces the expression
+            // address for the dispatch anyway.
+            // All external functions on this contract have `onlyNotInitializing`
+            // modifier on them so can't be reentered here anyway.
+            //slither-disable-next-line reentrancy-benign
             (interpreter, store, expression_) = config_.evaluableConfig.deployer.deployExpression(
                 config_.evaluableConfig.sources, config_.evaluableConfig.constants, entrypoints_
             );
