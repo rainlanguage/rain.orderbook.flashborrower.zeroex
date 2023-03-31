@@ -14,7 +14,8 @@ jobs:
           version: nightly
       - name: Forge deploy contract to mumbai(wip)
         env:
-          RPC_URL: https://polygon-mumbai.g.alchemy.com/v2/jllC0ibnwVO8EiXqMikdNt07QCDTjS1h
-          PRIVATE_KEY: 7bb27c19f61482998382d9fcae458c2a9d196115390034ca4ae978dfe07cfbde
-        run: forge create --rpc-url $RPC_URL --constructor-args  $(cast abi-encode "constructor((address,address))" "(0x00fb875f4d86c9c73e0176a6d244047a069ce53d,0xf471d32cb40837bf24529fcf17418fc1a4807626)") --private-key $PRIVATE_KEY src/ZeroExOrderBookFlashBorrower.sol:ZeroExOrderBookFlashBorrower
+          RPC_URL: ${{ secrets.RPC_URL }}
+          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+          ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
+        run: forge create --rpc-url $RPC_URL --private-key $PRIVATE_KEY --etherscan-api-key $ETHERSCAN_API_KEY --verify src/ZeroExOrderBookFlashBorrower.sol:ZeroExOrderBookFlashBorrower  
         
