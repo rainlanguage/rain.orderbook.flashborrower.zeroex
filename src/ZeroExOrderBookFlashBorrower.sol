@@ -28,6 +28,9 @@ error FlashLoanFailed();
 /// Thrown when calling functions while the contract is still initializing.
 error Initializing();
 
+/// Thrown when the swap fails.
+error SwapFailed();
+
 /// Construction config for `ZeroExOrderBookFlashBorrower`
 /// @param orderBook `OrderBook` contract to lend and arb against.
 /// @param zeroExExchangeProxy 0x exchange proxy as per reference implementation.
@@ -130,15 +133,16 @@ contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, Re
 
         // Call the encoded swap function call on the contract at `swapTarget`,
         // passing along any ETH attached to this function call to cover protocol fees.
-        zeroExExchangeProxy.functionCallWithValue(zeroExData_, address(this).balance);
+        bytes memory returnData_ = zeroExExchangeProxy.functionCallWithValue(zeroExData_, address(this).balance);
+        (returnData_);
 
         // At this point 0x should have sent the tokens required to match the
         // orders so take orders now.
         // We don't do anything with the total input/output amounts here because
         // the flash loan itself will take back what it needs, and we simply
         // keep anything left over according to active balances.
-        //slither-disable-next-line unused-return
-        orderBook.takeOrders(takeOrders_);
+        (uint256 totalInput_, uint256 totalOutput_) = orderBook.takeOrders(takeOrders_);
+        (totalInput_, totalOutput_);
 
         return ON_FLASH_LOAN_CALLBACK_SUCCESS;
     }
