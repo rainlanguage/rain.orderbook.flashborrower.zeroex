@@ -9,3 +9,12 @@
 	path = lib/openzeppelin-contracts
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
 	branch = v4.8.2
+[submodule "lib/rain.interface.interpreter"]
+	path = lib/rain.interface.interpreter
+	url = https://github.com/rainprotocol/rain.interface.interpreter
+[submodule "lib/rain.interface.factory"]
+	path = lib/rain.interface.factory
+	url = https://github.com/rainprotocol/rain.interface.factory
+[submodule "lib/sol.lib.memory"]
+	path = lib/sol.lib.memory
+	url = https://github.com/rainprotocol/sol.lib.memory

@@ -3,6 +3,7 @@ pragma solidity =0.8.18;
 
 import "forge-std/Test.sol";
 import "../src/ZeroExOrderBookFlashBorrower.sol";
+import "openzeppelin-contracts/contracts/proxy/Clones.sol";
 import "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import "rain.interface.orderbook/IOrderBookV1.sol";
 
@@ -23,8 +24,8 @@ contract MockOrderBook is IOrderBookV1 {
         return true;
     }
 
-    function takeOrders(TakeOrdersConfig calldata config) external returns (uint256 totalInput, uint256 totalOutput) {
-        return (0, 0)
+    function takeOrders(TakeOrdersConfig calldata) external pure returns (uint256 totalInput, uint256 totalOutput) {
+        return (0, 0);
     }
 
     function addOrder(OrderConfig calldata config) external {}
@@ -45,22 +46,31 @@ contract MockOrderBook is IOrderBookV1 {
 }
 
 contract Mock0xProxy {
-    fallback() external { Address.sendValue(payable(msg.sender), address(this).balance); }
+    fallback() external {
+        Address.sendValue(payable(msg.sender), address(this).balance);
+    }
 }
 
 contract ZeroExOrderBookFlashBorrowerTest is Test {
-    function testTakeOrdersSender(address alice_) public {
+    function testTakeOrdersSender() public {
         MockOrderBook ob_ = new MockOrderBook();
         Mock0xProxy proxy_ = new Mock0xProxy();
 
         Token input_ = new Token();
         Token output_ = new Token();
 
-        ZeroExOrderBookFlashBorrower arb_ = new ZeroExOrderBookFlashBorrower(ZeroExOrderBookFlashBorrowerConfig(
-            address(ob_), address(proxy_)
-        ));
+        ZeroExOrderBookFlashBorrower arb_ =
+            ZeroExOrderBookFlashBorrower(Clones.clone(address(new ZeroExOrderBookFlashBorrower())));
+        arb_.initialize(
+            abi.encode(
+                ZeroExOrderBookFlashBorrowerConfig(
+                    address(ob_),
+                    address(proxy_),
+                    EvaluableConfig(IExpressionDeployerV1(address(0)), new bytes[](0), new uint256[](0))
+                )
+            )
+        );
 
-        vm.startPrank(alice_);
         arb_.arb(
             TakeOrdersConfig(
                 address(output_), address(input_), 0, type(uint256).max, type(uint256).max, new TakeOrderConfig[](0)
@@ -69,4 +79,7 @@ contract ZeroExOrderBookFlashBorrowerTest is Test {
             ""
         );
     }
+
+    // Allow receiving funds at end of arb.
+    fallback() external {}
 }

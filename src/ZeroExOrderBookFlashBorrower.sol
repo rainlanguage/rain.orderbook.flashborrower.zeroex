@@ -5,12 +5,14 @@ import {Address} from "openzeppelin-contracts/contracts/utils/Address.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "openzeppelin-contracts/contracts/security/ReentrancyGuard.sol";
+import {Initializable} from "openzeppelin-contracts/contracts/proxy/utils/Initializable.sol";
 
 import "rain.interface.orderbook/ierc3156/IERC3156FlashLender.sol";
 import "rain.interface.orderbook/ierc3156/IERC3156FlashBorrower.sol";
 import "rain.interface.orderbook/IOrderBookV1.sol";
-
-import "forge-std/console2.sol";
+import "rain.interface.factory/ICloneableV1.sol";
+import "rain.interface.interpreter/LibEncodedDispatch.sol";
+import "rain.interface.interpreter/LibContext.sol";
 
 /// Thrown when the lender is not the trusted `OrderBook`.
 /// @param badLender The untrusted lender calling `onFlashLoan`.
@@ -29,7 +31,12 @@ error FlashLoanFailed();
 struct ZeroExOrderBookFlashBorrowerConfig {
     address orderBook;
     address zeroExExchangeProxy;
+    EvaluableConfig evaluableConfig;
 }
+
+SourceIndex constant BEFORE_ARB_SOURCE_INDEX = SourceIndex.wrap(0);
+uint256 constant BEFORE_ARB_MIN_OUTPUTS = 0;
+uint16 constant BEFORE_ARB_MAX_OUTPUTS = 0;
 
 /// @title ZeroExOrderBookFlashBorrower
 /// @notice Based on the 0x reference swap implementation
@@ -53,19 +60,42 @@ struct ZeroExOrderBookFlashBorrowerConfig {
 /// - Sell the 100 USDT for 102 DAI on 0x
 /// - Take the order, giving 101 DAI and having 100 USDT loan forgiven
 /// - Keep 1 DAI profit
-contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ReentrancyGuard {
+contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, ReentrancyGuard, Initializable {
     using Address for address;
     using SafeERC20 for IERC20;
 
+    event Initialize(address sender, ZeroExOrderBookFlashBorrowerConfig config);
+
     /// `OrderBook` contract to lend and arb against.
-    IOrderBookV1 public immutable orderBook;
+    IOrderBookV1 public orderBook;
     /// 0x exchange proxy as per reference implementation.
-    address public immutable zeroExExchangeProxy;
+    address public zeroExExchangeProxy;
+    IInterpreterV1 interpreter;
+    IInterpreterStoreV1 store;
+    EncodedDispatch dispatch;
 
     /// Initialize immutable contracts to arb and trade against.
-    constructor(ZeroExOrderBookFlashBorrowerConfig memory config_) {
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(bytes memory data_) external initializer {
+        (ZeroExOrderBookFlashBorrowerConfig memory config_) = abi.decode(data_, (ZeroExOrderBookFlashBorrowerConfig));
         orderBook = IOrderBookV1(config_.orderBook);
         zeroExExchangeProxy = config_.zeroExExchangeProxy;
+
+        emit Initialize(msg.sender, config_);
+
+        if (config_.evaluableConfig.sources.length > 0 && config_.evaluableConfig.sources[0].length > 0) {
+            address expression_;
+            uint256[] memory entrypoints_ = new uint256[](1);
+            // 0 outputs.
+            entrypoints_[SourceIndex.unwrap(BEFORE_ARB_SOURCE_INDEX)] = BEFORE_ARB_MIN_OUTPUTS;
+            (interpreter, store, expression_) = config_.evaluableConfig.deployer.deployExpression(
+                config_.evaluableConfig.sources, config_.evaluableConfig.constants, entrypoints_
+            );
+            dispatch = LibEncodedDispatch.encode(expression_, BEFORE_ARB_SOURCE_INDEX, BEFORE_ARB_MAX_OUTPUTS);
+        }
     }
 
     /// @inheritdoc IERC3156FlashBorrower
@@ -123,6 +153,20 @@ contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ReentrancyGuard 
         // give us and there's no reason to borrow less.
         uint256 flashLoanAmount_ = takeOrders_.minimumInput;
 
+        EncodedDispatch dispatch_ = dispatch;
+        if (EncodedDispatch.unwrap(dispatch_) > 0) {
+            (uint256[] memory stack_, uint256[] memory kvs_) = interpreter.eval(
+                store,
+                DEFAULT_STATE_NAMESPACE,
+                dispatch_,
+                LibContext.build(new uint256[][](0), new uint256[](0), new SignedContext[](0))
+            );
+            require(stack_.length == 0);
+            if (kvs_.length > 0) {
+                store.set(DEFAULT_STATE_NAMESPACE, kvs_);
+            }
+        }
+
         // This is overkill to infinite approve every time.
         // @todo make this hammer smaller.
         IERC20(takeOrders_.output).safeApprove(address(orderBook), 0);
@@ -134,7 +178,16 @@ contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ReentrancyGuard 
             revert FlashLoanFailed();
         }
 
-        console2.log("foo", address(this), msg.sender);
+        // Send all unspent input tokens to the sender.
+        uint256 inputBalance_ = IERC20(takeOrders_.input).balanceOf(address(this));
+        if (inputBalance_ > 0) {
+            IERC20(takeOrders_.input).safeTransfer(msg.sender, inputBalance_);
+        }
+        // Send all unspent output tokens to the sender.
+        uint256 outputBalance_ = IERC20(takeOrders_.output).balanceOf(address(this));
+        if (outputBalance_ > 0) {
+            IERC20(takeOrders_.output).safeTransfer(msg.sender, outputBalance_);
+        }
 
         // Send all unspent 0x protocol fees to the sender.
         // Slither false positive here. This is near verbatim from the reference
@@ -147,20 +200,9 @@ contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ReentrancyGuard 
         // If for some strange reason you send tokens or ETH directly to this
         // contract other than for the intended purpose, expect your funds to be
         // immediately drained by the next caller.
-        payable(msg.sender).transfer(address(this).balance);
-
-        // Send all unspent input tokens to the sender.
-        uint256 inputBalance_ = IERC20(takeOrders_.input).balanceOf(address(this));
-        if (inputBalance_ > 0) {
-            IERC20(takeOrders_.input).safeTransfer(msg.sender, inputBalance_);
-        }
-        // Send all unspent output tokens to the sender.
-        uint256 outputBalance_ = IERC20(takeOrders_.output).balanceOf(address(this));
-        if (outputBalance_ > 0) {
-            IERC20(takeOrders_.output).safeTransfer(msg.sender, outputBalance_);
-        }
+        Address.sendValue(payable(msg.sender), address(this).balance);
     }
 
     /// Allow receiving gas.
-    fallback() external { }
+    fallback() external {}
 }
