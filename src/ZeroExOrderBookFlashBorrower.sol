@@ -25,6 +25,9 @@ error BadInitiator(address badInitiator);
 /// Thrown when the flash loan fails somehow.
 error FlashLoanFailed();
 
+/// Thrown when calling functions while the contract is still initializing.
+error Initializing();
+
 /// Construction config for `ZeroExOrderBookFlashBorrower`
 /// @param orderBook `OrderBook` contract to lend and arb against.
 /// @param zeroExExchangeProxy 0x exchange proxy as per reference implementation.
@@ -98,10 +101,17 @@ contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, Re
         }
     }
 
+    modifier onlyNotInitializing() {
+        if (_isInitializing()) {
+            revert Initializing();
+        }
+        _;
+    }
+
     /// @inheritdoc IERC3156FlashBorrower
     function onFlashLoan(address initiator_, address, uint256, uint256, bytes calldata data_)
         external
-        nonReentrant
+        onlyNotInitializing
         returns (bytes32)
     {
         if (msg.sender != address(orderBook)) {
@@ -144,6 +154,7 @@ contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, Re
     function arb(TakeOrdersConfig calldata takeOrders_, address zeroExSpender_, bytes calldata zeroExData_)
         external
         nonReentrant
+        onlyNotInitializing
     {
         // This data needs to be encoded so that it can be passed to the
         // `onFlashLoan` callback.
