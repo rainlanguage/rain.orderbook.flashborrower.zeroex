@@ -101,6 +101,7 @@ contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, Re
     /// @inheritdoc IERC3156FlashBorrower
     function onFlashLoan(address initiator_, address, uint256, uint256, bytes calldata data_)
         external
+        nonReentrant
         returns (bytes32)
     {
         if (msg.sender != address(orderBook)) {
