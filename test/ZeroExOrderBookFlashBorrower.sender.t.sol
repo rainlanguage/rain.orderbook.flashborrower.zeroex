@@ -24,7 +24,7 @@ contract MockOrderBook is IOrderBookV1 {
         return true;
     }
 
-    function takeOrders(TakeOrdersConfig calldata config) external returns (uint256 totalInput, uint256 totalOutput) {
+    function takeOrders(TakeOrdersConfig calldata) external pure returns (uint256 totalInput, uint256 totalOutput) {
         return (0, 0);
     }
 
