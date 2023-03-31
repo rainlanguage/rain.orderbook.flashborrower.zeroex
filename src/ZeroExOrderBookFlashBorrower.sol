@@ -79,7 +79,7 @@ contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, Re
         _disableInitializers();
     }
 
-    function initialize(bytes memory data_) external initializer {
+    function initialize(bytes memory data_) external initializer nonReentrant {
         (ZeroExOrderBookFlashBorrowerConfig memory config_) = abi.decode(data_, (ZeroExOrderBookFlashBorrowerConfig));
         orderBook = IOrderBookV1(config_.orderBook);
         zeroExExchangeProxy = config_.zeroExExchangeProxy;
