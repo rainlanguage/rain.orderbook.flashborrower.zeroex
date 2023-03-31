@@ -25,6 +25,12 @@ error BadInitiator(address badInitiator);
 /// Thrown when the flash loan fails somehow.
 error FlashLoanFailed();
 
+/// Thrown when calling functions while the contract is still initializing.
+error Initializing();
+
+/// Thrown when the swap fails.
+error SwapFailed();
+
 /// Construction config for `ZeroExOrderBookFlashBorrower`
 /// @param orderBook `OrderBook` contract to lend and arb against.
 /// @param zeroExExchangeProxy 0x exchange proxy as per reference implementation.
@@ -79,7 +85,7 @@ contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, Re
         _disableInitializers();
     }
 
-    function initialize(bytes memory data_) external initializer {
+    function initialize(bytes memory data_) external initializer nonReentrant {
         (ZeroExOrderBookFlashBorrowerConfig memory config_) = abi.decode(data_, (ZeroExOrderBookFlashBorrowerConfig));
         orderBook = IOrderBookV1(config_.orderBook);
         zeroExExchangeProxy = config_.zeroExExchangeProxy;
@@ -91,6 +97,11 @@ contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, Re
             uint256[] memory entrypoints_ = new uint256[](1);
             // 0 outputs.
             entrypoints_[SourceIndex.unwrap(BEFORE_ARB_SOURCE_INDEX)] = BEFORE_ARB_MIN_OUTPUTS;
+            // We have to trust the deployer because it produces the expression
+            // address for the dispatch anyway.
+            // All external functions on this contract have `onlyNotInitializing`
+            // modifier on them so can't be reentered here anyway.
+            //slither-disable-next-line reentrancy-benign
             (interpreter, store, expression_) = config_.evaluableConfig.deployer.deployExpression(
                 config_.evaluableConfig.sources, config_.evaluableConfig.constants, entrypoints_
             );
@@ -98,9 +109,17 @@ contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, Re
         }
     }
 
+    modifier onlyNotInitializing() {
+        if (_isInitializing()) {
+            revert Initializing();
+        }
+        _;
+    }
+
     /// @inheritdoc IERC3156FlashBorrower
     function onFlashLoan(address initiator_, address, uint256, uint256, bytes calldata data_)
         external
+        onlyNotInitializing
         returns (bytes32)
     {
         if (msg.sender != address(orderBook)) {
@@ -114,14 +133,16 @@ contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, Re
 
         // Call the encoded swap function call on the contract at `swapTarget`,
         // passing along any ETH attached to this function call to cover protocol fees.
-        zeroExExchangeProxy.functionCallWithValue(zeroExData_, address(this).balance);
+        bytes memory returnData_ = zeroExExchangeProxy.functionCallWithValue(zeroExData_, address(this).balance);
+        (returnData_);
 
         // At this point 0x should have sent the tokens required to match the
         // orders so take orders now.
         // We don't do anything with the total input/output amounts here because
         // the flash loan itself will take back what it needs, and we simply
         // keep anything left over according to active balances.
-        orderBook.takeOrders(takeOrders_);
+        (uint256 totalInput_, uint256 totalOutput_) = orderBook.takeOrders(takeOrders_);
+        (totalInput_, totalOutput_);
 
         return ON_FLASH_LOAN_CALLBACK_SUCCESS;
     }
@@ -142,6 +163,7 @@ contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, Re
     function arb(TakeOrdersConfig calldata takeOrders_, address zeroExSpender_, bytes calldata zeroExData_)
         external
         nonReentrant
+        onlyNotInitializing
     {
         // This data needs to be encoded so that it can be passed to the
         // `onFlashLoan` callback.
@@ -204,5 +226,5 @@ contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, Re
     }
 
     /// Allow receiving gas.
-    fallback() external {}
+    fallback() external onlyNotInitializing {}
 }
