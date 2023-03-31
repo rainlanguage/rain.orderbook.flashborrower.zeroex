@@ -138,7 +138,7 @@ contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, Re
     /// spend tokens for the external trade.
     /// @param zeroExData_ Data provided by the 0x API to complete the external
     /// trade as preapproved by 0x.
-    function arb(TakeOrdersConfig calldata takeOrders_, address zeroExSpender_, bytes calldata zeroExData_)
+    function arb(TakeOrdersConfig calldata takeOrders_, address zeroExSpender_, bytes calldata zeroExData_, SignedContext[] memory signedContext_)
         external
         nonReentrant
     {
@@ -151,6 +151,11 @@ contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, Re
         // We can't repay more than the minimum that the orders are going to
         // give us and there's no reason to borrow less.
         uint256 flashLoanAmount_ = takeOrders_.minimumInput;
+
+        EncodedDispatch dispatch_ = dispatch;
+        if (EncodedDispatch.unwrap(dispatch_) > 0) {
+            interpreter.eval(store, DEFAULT_STATE_NAMESPACE, dispatch_, LibContext.build());
+        }
 
         // This is overkill to infinite approve every time.
         // @todo make this hammer smaller.
