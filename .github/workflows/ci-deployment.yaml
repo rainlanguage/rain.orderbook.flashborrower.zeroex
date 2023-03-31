@@ -1,10 +1,5 @@
 name: CI deployments
 on: [push] 
-  workflow_call:
-    inputs:
-      orderbook: '0x00fb875f4d86c9c73e0176a6d244047a069ce53d'
-      proxy: '0xf471d32cb40837bf24529fcf17418fc1a4807626'
-
 
 jobs:
   deploy:
@@ -17,4 +12,4 @@ jobs:
         with:
           version: nightly
       - name: Print the input name to STDOUT
-        run: echo The orderbook is ${{ inputs.orderbook }}
+        run: echo The orderbook is 0x00fb875f4d86c9c73e0176a6d244047a069ce53d
