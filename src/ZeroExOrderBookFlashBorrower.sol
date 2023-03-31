@@ -217,5 +217,5 @@ contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, Re
     }
 
     /// Allow receiving gas.
-    fallback() external {}
+    fallback() external onlyNotInitializing {}
 }
