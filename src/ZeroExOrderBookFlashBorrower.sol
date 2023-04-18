@@ -9,7 +9,7 @@ import {Initializable} from "openzeppelin-contracts/contracts/proxy/utils/Initia
 
 import "rain.interface.orderbook/ierc3156/IERC3156FlashLender.sol";
 import "rain.interface.orderbook/ierc3156/IERC3156FlashBorrower.sol";
-import "rain.interface.orderbook/IOrderBookV1.sol";
+import "rain.interface.orderbook/IOrderBookV2.sol";
 import "rain.interface.factory/ICloneableV1.sol";
 import "rain.interface.interpreter/LibEncodedDispatch.sol";
 import "rain.interface.interpreter/LibContext.sol";
@@ -73,7 +73,7 @@ contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, Re
     event Initialize(address sender, ZeroExOrderBookFlashBorrowerConfig config);
 
     /// `OrderBook` contract to lend and arb against.
-    IOrderBookV1 public orderBook;
+    IOrderBookV2 public orderBook;
     /// 0x exchange proxy as per reference implementation.
     address public zeroExExchangeProxy;
     IInterpreterV1 interpreter;
@@ -87,7 +87,7 @@ contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, Re
 
     function initialize(bytes memory data_) external initializer nonReentrant {
         (ZeroExOrderBookFlashBorrowerConfig memory config_) = abi.decode(data_, (ZeroExOrderBookFlashBorrowerConfig));
-        orderBook = IOrderBookV1(config_.orderBook);
+        orderBook = IOrderBookV2(config_.orderBook);
         zeroExExchangeProxy = config_.zeroExExchangeProxy;
 
         emit Initialize(msg.sender, config_);
@@ -155,7 +155,7 @@ contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, Re
     /// onchain and offchain responsibilities related to the transaction.
     /// `ZeroExOrderBookFlashBorrower` only provides the necessary logic to
     /// faciliate the flash loan, external trade and repayment.
-    /// @param takeOrders_ As per `IOrderBookV1.takeOrders`.
+    /// @param takeOrders_ As per `IOrderBookV2.takeOrders`.
     /// @param zeroExSpender_ Address provided by the 0x API to be approved to
     /// spend tokens for the external trade.
     /// @param zeroExData_ Data provided by the 0x API to complete the external
@@ -181,7 +181,7 @@ contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, Re
                 store,
                 DEFAULT_STATE_NAMESPACE,
                 dispatch_,
-                LibContext.build(new uint256[][](0), new uint256[](0), new SignedContext[](0))
+                LibContext.build(new uint256[][](0), new SignedContextV1[](0))
             );
             require(stack_.length == 0);
             if (kvs_.length > 0) {

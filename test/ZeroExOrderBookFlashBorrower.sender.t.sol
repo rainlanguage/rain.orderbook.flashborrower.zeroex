@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 import "../src/ZeroExOrderBookFlashBorrower.sol";
 import "openzeppelin-contracts/contracts/proxy/Clones.sol";
 import "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
-import "rain.interface.orderbook/IOrderBookV1.sol";
+import "rain.interface.orderbook/IOrderBookV2.sol";
 
 contract Token is ERC20 {
     constructor() ERC20("Token", "TKN") {}
@@ -15,7 +15,7 @@ contract Token is ERC20 {
     }
 }
 
-contract MockOrderBook is IOrderBookV1 {
+contract MockOrderBook is IOrderBookV2 {
     function flashLoan(IERC3156FlashBorrower receiver, address token, uint256 amount, bytes calldata data)
         external
         returns (bool)
@@ -33,8 +33,8 @@ contract MockOrderBook is IOrderBookV1 {
         Order memory alice,
         Order memory bob,
         ClearConfig calldata clearConfig,
-        SignedContext[] memory aliceSignedContext,
-        SignedContext[] memory bobSignedContext
+        SignedContextV1[] memory aliceSignedContextV1,
+        SignedContextV1[] memory bobSignedContextV1
     ) external {}
     function deposit(DepositConfig calldata config) external {}
     function flashFee(address token, uint256 amount) external view returns (uint256) {}
