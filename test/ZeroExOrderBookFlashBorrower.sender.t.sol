@@ -75,6 +75,7 @@ contract ZeroExOrderBookFlashBorrowerTest is Test {
             TakeOrdersConfig(
                 address(output_), address(input_), 0, type(uint256).max, type(uint256).max, new TakeOrderConfig[](0)
             ),
+            0,
             address(proxy_),
             ""
         );
