@@ -31,6 +31,9 @@ error Initializing();
 /// Thrown when the swap fails.
 error SwapFailed();
 
+/// Thrown when the minimum output for the sender is not met after the arb.
+error MinimumOutput(uint256 minimum, uint256 actual);
+
 /// Construction config for `ZeroExOrderBookFlashBorrower`
 /// @param orderBook `OrderBook` contract to lend and arb against.
 /// @param zeroExExchangeProxy 0x exchange proxy as per reference implementation.
@@ -156,15 +159,18 @@ contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, Re
     /// `ZeroExOrderBookFlashBorrower` only provides the necessary logic to
     /// faciliate the flash loan, external trade and repayment.
     /// @param takeOrders_ As per `IOrderBookV2.takeOrders`.
+    /// @param minimumSenderOutput_ The minimum output that must be sent to the sender
+    /// by the end of the arb call.
     /// @param zeroExSpender_ Address provided by the 0x API to be approved to
     /// spend tokens for the external trade.
     /// @param zeroExData_ Data provided by the 0x API to complete the external
     /// trade as preapproved by 0x.
-    function arb(TakeOrdersConfig calldata takeOrders_, address zeroExSpender_, bytes calldata zeroExData_)
-        external
-        nonReentrant
-        onlyNotInitializing
-    {
+    function arb(
+        TakeOrdersConfig calldata takeOrders_,
+        uint256 minimumSenderOutput_,
+        address zeroExSpender_,
+        bytes calldata zeroExData_
+    ) external nonReentrant onlyNotInitializing {
         // This data needs to be encoded so that it can be passed to the
         // `onFlashLoan` callback.
         bytes memory data_ = abi.encode(takeOrders_, zeroExData_);
@@ -207,6 +213,9 @@ contract ZeroExOrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, Re
         }
         // Send all unspent output tokens to the sender.
         uint256 outputBalance_ = IERC20(takeOrders_.output).balanceOf(address(this));
+        if (outputBalance_ < minimumSenderOutput_) {
+            revert MinimumOutput(minimumSenderOutput_, outputBalance_);
+        }
         if (outputBalance_ > 0) {
             IERC20(takeOrders_.output).safeTransfer(msg.sender, outputBalance_);
         }
