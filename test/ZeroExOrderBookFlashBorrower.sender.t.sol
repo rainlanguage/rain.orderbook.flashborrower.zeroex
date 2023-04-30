@@ -81,7 +81,7 @@ contract ZeroExOrderBookFlashBorrowerTest is Test {
         );
     }
 
-    function testMinimumOutput(address deployer, uint256 minimumOutput, uint256 mintAmount) public {
+    function testMinimumOutput(uint256 minimumOutput, uint256 mintAmount) public {
         vm.assume(minimumOutput > mintAmount);
         MockOrderBook ob_ = new MockOrderBook();
         Mock0xProxy proxy_ = new Mock0xProxy();
