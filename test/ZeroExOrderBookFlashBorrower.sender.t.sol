@@ -79,16 +79,15 @@ contract ZeroExOrderBookFlashBorrowerTest is Test {
             address(proxy_),
             ""
         );
-    }  
+    }
 
-    function testMinimumOutput(address deployer, address alice, uint256 minimumOutput, uint256 mintAmount) public {   
-
-        vm.assume(minimumOutput > mintAmount) ; 
+    function testMinimumOutput(address deployer, address alice, uint256 minimumOutput, uint256 mintAmount) public {
+        vm.assume(minimumOutput > mintAmount);
         MockOrderBook ob_ = new MockOrderBook();
-        Mock0xProxy proxy_ = new Mock0xProxy(); 
+        Mock0xProxy proxy_ = new Mock0xProxy();
 
         Token input_ = new Token();
-        Token output_ = new Token(); 
+        Token output_ = new Token();
 
         ZeroExOrderBookFlashBorrower arb_ =
             ZeroExOrderBookFlashBorrower(Clones.clone(address(new ZeroExOrderBookFlashBorrower())));
@@ -100,20 +99,14 @@ contract ZeroExOrderBookFlashBorrowerTest is Test {
                     EvaluableConfig(IExpressionDeployerV1(address(0)), new bytes[](0), new uint256[](0))
                 )
             )
-        ); 
-
-        vm.prank(deployer) ; 
-        output_.mint(address(arb_),mintAmount) ; 
-        vm.stopPrank() ;   
-
-        vm.prank(alice) ; 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                MinimumOutput.selector,
-                minimumOutput,
-                mintAmount
-            )
         );
+
+        vm.prank(deployer);
+        output_.mint(address(arb_), mintAmount);
+        vm.stopPrank();
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(MinimumOutput.selector, minimumOutput, mintAmount));
         arb_.arb(
             TakeOrdersConfig(
                 address(output_), address(input_), 0, type(uint256).max, type(uint256).max, new TakeOrderConfig[](0)
@@ -121,9 +114,8 @@ contract ZeroExOrderBookFlashBorrowerTest is Test {
             minimumOutput,
             address(proxy_),
             ""
-        );  
-        vm.stopPrank() ;  
-
+        );
+        vm.stopPrank();
     }
 
     // Allow receiving funds at end of arb.
