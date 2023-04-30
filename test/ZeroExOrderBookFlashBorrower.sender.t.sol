@@ -81,7 +81,7 @@ contract ZeroExOrderBookFlashBorrowerTest is Test {
         );
     }
 
-    function testMinimumOutput(address deployer, address alice, uint256 minimumOutput, uint256 mintAmount) public {
+    function testMinimumOutput(address deployer, uint256 minimumOutput, uint256 mintAmount) public {
         vm.assume(minimumOutput > mintAmount);
         MockOrderBook ob_ = new MockOrderBook();
         Mock0xProxy proxy_ = new Mock0xProxy();
@@ -105,7 +105,6 @@ contract ZeroExOrderBookFlashBorrowerTest is Test {
         output_.mint(address(arb_), mintAmount);
         vm.stopPrank();
 
-        vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(MinimumOutput.selector, minimumOutput, mintAmount));
         arb_.arb(
             TakeOrdersConfig(
@@ -115,7 +114,6 @@ contract ZeroExOrderBookFlashBorrowerTest is Test {
             address(proxy_),
             ""
         );
-        vm.stopPrank();
     }
 
     // Allow receiving funds at end of arb.
