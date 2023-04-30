@@ -101,9 +101,7 @@ contract ZeroExOrderBookFlashBorrowerTest is Test {
             )
         );
 
-        vm.prank(deployer);
         output_.mint(address(arb_), mintAmount);
-        vm.stopPrank();
 
         vm.expectRevert(abi.encodeWithSelector(MinimumOutput.selector, minimumOutput, mintAmount));
         arb_.arb(
