@@ -63,10 +63,10 @@ contract ZeroExOrderBookFlashBorrowerTest is Test {
             ZeroExOrderBookFlashBorrower(Clones.clone(address(new ZeroExOrderBookFlashBorrower())));
         arb_.initialize(
             abi.encode(
-                ZeroExOrderBookFlashBorrowerConfig(
+                OrderBookFlashBorrowerConfig(
                     address(ob_),
-                    address(proxy_),
-                    EvaluableConfig(IExpressionDeployerV1(address(0)), new bytes[](0), new uint256[](0))
+                    EvaluableConfig(IExpressionDeployerV1(address(0)), new bytes[](0), new uint256[](0)),
+                    abi.encode(address(proxy_))
                 )
             )
         );
@@ -76,8 +76,7 @@ contract ZeroExOrderBookFlashBorrowerTest is Test {
                 address(output_), address(input_), 0, type(uint256).max, type(uint256).max, new TakeOrderConfig[](0)
             ),
             0,
-            address(proxy_),
-            ""
+            abi.encode(address(proxy_), "")
         );
     }
 
@@ -93,10 +92,10 @@ contract ZeroExOrderBookFlashBorrowerTest is Test {
             ZeroExOrderBookFlashBorrower(Clones.clone(address(new ZeroExOrderBookFlashBorrower())));
         arb_.initialize(
             abi.encode(
-                ZeroExOrderBookFlashBorrowerConfig(
+                OrderBookFlashBorrowerConfig(
                     address(ob_),
-                    address(proxy_),
-                    EvaluableConfig(IExpressionDeployerV1(address(0)), new bytes[](0), new uint256[](0))
+                    EvaluableConfig(IExpressionDeployerV1(address(0)), new bytes[](0), new uint256[](0)),
+                    abi.encode(address(proxy_))
                 )
             )
         );
@@ -109,8 +108,7 @@ contract ZeroExOrderBookFlashBorrowerTest is Test {
                 address(output_), address(input_), 0, type(uint256).max, type(uint256).max, new TakeOrderConfig[](0)
             ),
             minimumOutput,
-            address(proxy_),
-            ""
+            abi.encode(address(proxy_), "")
         );
     }
 

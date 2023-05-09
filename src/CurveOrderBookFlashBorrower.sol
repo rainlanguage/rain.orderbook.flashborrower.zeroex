@@ -6,25 +6,28 @@ import "rain.interface.orderbook/ierc3156/IERC3156FlashBorrower.sol";
 
 import "./OrderBookFlashBorrower.sol";
 
-contract ZeroExOrderBookFlashBorrower is OrderBookFlashBorrower {
+interface ICurvePool {
+    function exchange(int128 i, int128 j, uint256 dx, uint256 min_dy) external;
+}
+
+contract CurveOrderBookFlashBorrower is OrderBookFlashBorrower {
     using SafeERC20 for IERC20;
     using Address for address;
 
-    /// 0x exchange proxy as per reference implementation.
-    address public zeroExExchangeProxy;
+    ICurvePool public pool;
 
     function beforeInitialize(bytes memory data_) internal virtual override {
-        (address zeroExExchangeProxy_) = abi.decode(data_, (address));
-        zeroExExchangeProxy = zeroExExchangeProxy_;
+        (address pool_) = abi.decode(data_, (address));
+        pool = ICurvePool(pool_);
     }
 
     function exchange(TakeOrdersConfig memory takeOrders_, bytes memory data_) internal virtual override {
-        (address zeroExSpender_, bytes memory zeroExData_) = abi.decode(data_, (address, bytes));
+        (int128 i_, int128 j_) = abi.decode(data_, (int128, int128));
         // Call the encoded swap function call on the contract at `swapTarget`,
         // passing along any ETH attached to this function call to cover protocol fees.
-        IERC20(takeOrders_.input).safeApprove(zeroExSpender_, type(uint256).max);
-        bytes memory returnData_ = zeroExExchangeProxy.functionCallWithValue(zeroExData_, address(this).balance);
-        (returnData_);
+        IERC20(takeOrders_.input).safeApprove(address(pool), type(uint256).max);
+        // OB will handle slippage.
+        pool.exchange(i_, j_, takeOrders_.minimumInput, 0);
     }
 
     /// Allow receiving gas.
