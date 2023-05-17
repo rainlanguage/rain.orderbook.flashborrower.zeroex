@@ -25,5 +25,5 @@ jobs:
         env:
           RPC_URL: ${{ secrets.RPC_URL }}
           PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
-          ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
-        run: forge create --rpc-url "${RPC_URL}" --private-key "${PRIVATE_KEY}" --etherscan-api-key "${ETHERSCAN_API_KEY}" --verify ${{ matrix.contract }}
+          ETHERSCAN_KEY: ${{ secrets.ETHERSCAN_KEY }}
+        run: forge create --rpc-url "${RPC_URL}" --private-key "${PRIVATE_KEY}" --etherscan-api-key "${ETHERSCAN_KEY}" --verify ${{ matrix.contract }}
