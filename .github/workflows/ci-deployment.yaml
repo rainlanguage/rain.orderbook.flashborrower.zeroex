@@ -25,5 +25,5 @@ jobs:
         env:
           CI_DEPLOY_RPC_URL: ${{ secrets.CI_DEPLOY_RPC_URL }}
           PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
-          ETHERSCAN_KEY: ${{ secrets.ETHERSCAN_KEY }}
-        run: forge create --rpc-url "${CI_DEPLOY_RPC_URL}" --private-key "${PRIVATE_KEY}" --etherscan-api-key "${ETHERSCAN_KEY}" --verify ${{ matrix.contract }}
+          EXPLORER_VERIFICATION_KEY: ${{ secrets.EXPLORER_VERIFICATION_KEY }}
+        run: forge create --rpc-url "${CI_DEPLOY_RPC_URL}" --private-key "${PRIVATE_KEY}" --etherscan-api-key "${EXPLORER_VERIFICATION_KEY}" --verify ${{ matrix.contract }}
