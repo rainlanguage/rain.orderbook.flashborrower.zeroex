@@ -5,7 +5,9 @@ jobs:
   deploy:
     strategy:
       matrix:
-        contract: [src/ZeroExOrderBookFlashBorrower.sol:ZeroExOrderBookFlashBorrower]
+        contract: [
+          "src/ZeroExOrderBookFlashBorrower.sol:ZeroExOrderBookFlashBorrower"
+        ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
