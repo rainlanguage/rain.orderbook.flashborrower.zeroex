@@ -4,21 +4,21 @@ pragma solidity =0.8.18;
 import "rain.interface.orderbook/ierc3156/IERC3156FlashLender.sol";
 import "rain.interface.orderbook/ierc3156/IERC3156FlashBorrower.sol";
 
-import "./OrderBookFlashBorrower.sol";
+import "../OrderBookFlashBorrower.sol";
 
-interface ICurvePool {
+interface ICurveStableSwap {
     function exchange(int128 i, int128 j, uint256 dx, uint256 min_dy) external;
 }
 
-contract CurveOrderBookFlashBorrower is OrderBookFlashBorrower {
+contract CurveStableSwapOrderBookFlashBorrower is OrderBookFlashBorrower {
     using SafeERC20 for IERC20;
     using Address for address;
 
-    ICurvePool public pool;
+    ICurveStableSwap public pool;
 
     function beforeInitialize(bytes memory data_) internal virtual override {
         (address pool_) = abi.decode(data_, (address));
-        pool = ICurvePool(pool_);
+        pool = ICurveStableSwap(pool_);
     }
 
     function exchange(TakeOrdersConfig memory takeOrders_, bytes memory data_) internal virtual override {
