@@ -11,12 +11,14 @@ contract GenericPoolOrderBookFlashBorrower is OrderBookFlashBorrower {
     using Address for address;
 
     function exchange(TakeOrdersConfig memory takeOrders, bytes memory data) internal virtual override {
-        (address pool, bytes memory callData) = abi.decode(data, (address, bytes));
+        (address spender, address pool, bytes memory callData) = abi.decode(data, (address, address, bytes));
 
-        IERC20(takeOrders.input).safeApprove(pool, type(uint256).max);
-        bytes memory returnData = pool.functionCall(callData);
-        // Nothing can be done with returnData.
+        IERC20(takeOrders.input).safeApprove(spender, 0);
+        IERC20(takeOrders.input).safeApprove(spender, type(uint256).max);
+        bytes memory returnData = pool.functionCallWithValue(callData, address(this).balance);
+        // Nothing can be done with returnData as 3156 does not support it.
         (returnData);
+        IERC20(takeOrders.input).safeApprove(spender, 0);
     }
 
     /// Allow receiving gas.
