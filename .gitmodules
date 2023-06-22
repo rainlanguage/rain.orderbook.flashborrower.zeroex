@@ -12,3 +12,6 @@
 [submodule "lib/rain.lib.hash"]
 	path = lib/rain.lib.hash
 	url = https://github.com/rainprotocol/rain.lib.hash
+[submodule "lib/rain.orderbook"]
+	path = lib/rain.orderbook
+	url = https://github.com/rainprotocol/rain.orderbook
