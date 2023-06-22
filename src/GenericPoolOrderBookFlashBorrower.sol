@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: CAL
 pragma solidity =0.8.18;
 
-import "rain.interface.orderbook/ierc3156/IERC3156FlashLender.sol";
-import "rain.interface.orderbook/ierc3156/IERC3156FlashBorrower.sol";
+import "rain.orderbook/src/interface/ierc3156/IERC3156FlashLender.sol";
+import "rain.orderbook/src/interface/ierc3156/IERC3156FlashBorrower.sol";
 
 import "./OrderBookFlashBorrower.sol";
 
