@@ -2,7 +2,7 @@
 pragma solidity =0.8.18;
 
 import "forge-std/Test.sol";
-import "../src/ZeroExOrderBookFlashBorrower.sol";
+import "../src/GenericPoolOrderBookFlashBorrower.sol";
 import "openzeppelin-contracts/contracts/proxy/Clones.sol";
 import "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import "rain.interface.orderbook/IOrderBookV2.sol";
@@ -59,14 +59,14 @@ contract ZeroExOrderBookFlashBorrowerTest is Test {
         Token input_ = new Token();
         Token output_ = new Token();
 
-        ZeroExOrderBookFlashBorrower arb_ =
-            ZeroExOrderBookFlashBorrower(Clones.clone(address(new ZeroExOrderBookFlashBorrower())));
+        GenericPoolOrderBookFlashBorrower arb_ =
+            GenericPoolOrderBookFlashBorrower(Clones.clone(address(new GenericPoolOrderBookFlashBorrower())));
         arb_.initialize(
             abi.encode(
                 OrderBookFlashBorrowerConfig(
                     address(ob_),
                     EvaluableConfig(IExpressionDeployerV1(address(0)), new bytes[](0), new uint256[](0)),
-                    abi.encode(address(proxy_))
+                    ""
                 )
             )
         );
@@ -76,39 +76,39 @@ contract ZeroExOrderBookFlashBorrowerTest is Test {
                 address(output_), address(input_), 0, type(uint256).max, type(uint256).max, new TakeOrderConfig[](0)
             ),
             0,
-            abi.encode(address(proxy_), "")
+            abi.encode(address(proxy_), address(proxy_), "")
         );
     }
 
     function testMinimumOutput(uint256 minimumOutput, uint256 mintAmount) public {
         vm.assume(minimumOutput > mintAmount);
-        MockOrderBook ob_ = new MockOrderBook();
-        Mock0xProxy proxy_ = new Mock0xProxy();
+        MockOrderBook ob = new MockOrderBook();
+        Mock0xProxy proxy = new Mock0xProxy();
 
-        Token input_ = new Token();
-        Token output_ = new Token();
+        Token input = new Token();
+        Token output = new Token();
 
-        ZeroExOrderBookFlashBorrower arb_ =
-            ZeroExOrderBookFlashBorrower(Clones.clone(address(new ZeroExOrderBookFlashBorrower())));
-        arb_.initialize(
+        GenericPoolOrderBookFlashBorrower arb =
+            GenericPoolOrderBookFlashBorrower(Clones.clone(address(new GenericPoolOrderBookFlashBorrower())));
+        arb.initialize(
             abi.encode(
                 OrderBookFlashBorrowerConfig(
-                    address(ob_),
+                    address(ob),
                     EvaluableConfig(IExpressionDeployerV1(address(0)), new bytes[](0), new uint256[](0)),
-                    abi.encode(address(proxy_))
+                    ""
                 )
             )
         );
 
-        output_.mint(address(arb_), mintAmount);
+        output.mint(address(arb), mintAmount);
 
         vm.expectRevert(abi.encodeWithSelector(MinimumOutput.selector, minimumOutput, mintAmount));
-        arb_.arb(
+        arb.arb(
             TakeOrdersConfig(
-                address(output_), address(input_), 0, type(uint256).max, type(uint256).max, new TakeOrderConfig[](0)
+                address(output), address(input), 0, type(uint256).max, type(uint256).max, new TakeOrderConfig[](0)
             ),
             minimumOutput,
-            abi.encode(address(proxy_), "")
+            abi.encode(address(proxy), address(proxy), "")
         );
     }
 
