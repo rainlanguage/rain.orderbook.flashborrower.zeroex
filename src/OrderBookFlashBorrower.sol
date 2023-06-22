@@ -42,12 +42,10 @@ SourceIndex constant BEFORE_ARB_SOURCE_INDEX = SourceIndex.wrap(0);
 uint256 constant BEFORE_ARB_MIN_OUTPUTS = 0;
 uint16 constant BEFORE_ARB_MAX_OUTPUTS = 0;
 
-/// @title ZeroExOrderBookFlashBorrower
-/// @notice Based on the 0x reference swap implementation
-/// https://github.com/0xProject/0x-api-starter-guide-code/blob/master/contracts/SimpleTokenSwap.sol
-///
-/// Integrates 0x with `Orderbook` flash loans to provide arbitrage against
-/// external liquidity that fills orderbook orders.
+/// @title OrderBookFlashBorrower
+/// @notice Base contract that liq-source specifialized contracts can extend to
+/// provide flash loan based arbitrage against external liquidity sources to fill
+/// orderbook orders.
 ///
 /// For example consider a simple order:
 ///
@@ -56,13 +54,13 @@ uint16 constant BEFORE_ARB_MAX_OUTPUTS = 0;
 /// IORatio = 1.01e18
 /// Order amount = 100e18
 ///
-/// Assume 0x is offering 102 DAI per USDT so it exceeds the IO ratio but the
-/// order itself has no way to interact with 0x.
-/// The `ZeroExOrderBookFlashBorrower` can:
+/// Assume external liq is offering 102 DAI per USDT so it exceeds the IO ratio
+/// but the order itself has no way to interact with the external contract.
+/// The `OrderBookFlashBorrower` can:
 ///
 /// - Flash loan 100 USDT from `Orderbook`
-/// - Sell the 100 USDT for 102 DAI on 0x
-/// - Take the order, giving 101 DAI and having 100 USDT loan forgiven
+/// - Sell the 100 USDT for 102 DAI on external liq
+/// - Take the order, giving 101 DAI and paying down 100 USDT loan
 /// - Keep 1 DAI profit
 contract OrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, ReentrancyGuard, Initializable {
     using Address for address;
@@ -71,22 +69,26 @@ contract OrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, Reentran
     event Initialize(address sender, OrderBookFlashBorrowerConfig config);
 
     /// `OrderBook` contract to lend and arb against.
-    IOrderBookV2 public orderBook;
+    IOrderBookV2 public sOrderBook;
 
-    IInterpreterV1 interpreter;
-    IInterpreterStoreV1 store;
-    EncodedDispatch dispatch;
-
-    function beforeInitialize(bytes memory data_) internal virtual {}
+    IInterpreterV1 public sI9r;
+    IInterpreterStoreV1 public sI9rStore;
+    EncodedDispatch public sI9rDispatch;
 
     /// Initialize immutable contracts to arb and trade against.
     constructor() {
         _disableInitializers();
     }
 
+    /// Hook called before initialize happens. Inheriting contracts can perform
+    /// internal state maintenance before any external contract calls are made.
+    /// @param data Arbitrary bytes the child may use to initialize.
+    function _beforeInitialize(bytes memory data) internal virtual {}
+
+    /// Standard initialization as
     function initialize(bytes memory data_) external initializer nonReentrant {
         (OrderBookFlashBorrowerConfig memory config_) = abi.decode(data_, (OrderBookFlashBorrowerConfig));
-        beforeInitialize(config_.implementationData);
+        _beforeInitialize(config_.implementationData);
 
         orderBook = IOrderBookV2(config_.orderBook);
 
@@ -116,7 +118,8 @@ contract OrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, Reentran
         _;
     }
 
-    function exchange(TakeOrdersConfig memory takeOrders_, bytes memory data_) internal virtual {}
+    ///slither-disable-next-line dead-code
+    function _exchange(TakeOrdersConfig memory takeOrders_, bytes memory data_) internal virtual {}
 
     /// @inheritdoc IERC3156FlashBorrower
     function onFlashLoan(address initiator_, address, uint256, uint256, bytes calldata data_)

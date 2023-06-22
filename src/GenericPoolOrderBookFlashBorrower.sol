@@ -10,7 +10,7 @@ contract GenericPoolOrderBookFlashBorrower is OrderBookFlashBorrower {
     using SafeERC20 for IERC20;
     using Address for address;
 
-    function exchange(TakeOrdersConfig memory takeOrders, bytes memory data) internal virtual override {
+    function _exchange(TakeOrdersConfig memory takeOrders, bytes memory data) internal virtual override {
         (address spender, address pool, bytes memory callData) = abi.decode(data, (address, address, bytes));
 
         IERC20(takeOrders.input).safeApprove(spender, 0);
