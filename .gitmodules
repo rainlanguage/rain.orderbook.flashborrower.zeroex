@@ -15,3 +15,6 @@
 [submodule "lib/rain.orderbook"]
 	path = lib/rain.orderbook
 	url = https://github.com/rainprotocol/rain.orderbook
+[submodule "lib/rain.interpreter"]
+	path = lib/rain.interpreter
+	url = https://github.com/rainprotocol/rain.interpreter
