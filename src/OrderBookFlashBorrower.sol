@@ -9,8 +9,8 @@ import {Initializable} from "openzeppelin-contracts/contracts/proxy/utils/Initia
 
 import "rain.orderbook/src/interface/IOrderBookV2.sol";
 import "rain.interface.factory/ICloneableV1.sol";
-import "rain.interface.interpreter/LibEncodedDispatch.sol";
-import "rain.interface.interpreter/LibContext.sol";
+import "rain.interpreter/lib/LibEncodedDispatch.sol";
+import "rain.interpreter/lib/LibContext.sol";
 
 /// Thrown when the lender is not the trusted `OrderBook`.
 /// @param badLender The untrusted lender calling `onFlashLoan`.
