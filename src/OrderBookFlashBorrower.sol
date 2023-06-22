@@ -8,7 +8,7 @@ import {ReentrancyGuard} from "openzeppelin-contracts/contracts/security/Reentra
 import {Initializable} from "openzeppelin-contracts/contracts/proxy/utils/Initializable.sol";
 
 import "rain.orderbook/src/interface/IOrderBookV2.sol";
-import "rain.interface.factory/ICloneableV1.sol";
+import "rain.factory/interface/ICloneableV1.sol";
 import "rain.interpreter/lib/LibEncodedDispatch.sol";
 import "rain.interpreter/lib/LibContext.sol";
 
@@ -86,28 +86,28 @@ contract OrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, Reentran
     function _beforeInitialize(bytes memory data) internal virtual {}
 
     /// Standard initialization as
-    function initialize(bytes memory data_) external initializer nonReentrant {
-        (OrderBookFlashBorrowerConfig memory config_) = abi.decode(data_, (OrderBookFlashBorrowerConfig));
-        _beforeInitialize(config_.implementationData);
+    function initialize(bytes memory data) external initializer nonReentrant {
+        (OrderBookFlashBorrowerConfig memory config) = abi.decode(data, (OrderBookFlashBorrowerConfig));
+        _beforeInitialize(config.implementationData);
 
-        orderBook = IOrderBookV2(config_.orderBook);
+        sOrderBook = IOrderBookV2(config.orderBook);
 
-        emit Initialize(msg.sender, config_);
+        emit Initialize(msg.sender, config);
 
-        if (config_.evaluableConfig.sources.length > 0 && config_.evaluableConfig.sources[0].length > 0) {
-            address expression_;
-            uint256[] memory entrypoints_ = new uint256[](1);
+        if (config.evaluableConfig.sources.length > 0 && config.evaluableConfig.sources[0].length > 0) {
+            address expression;
+            uint256[] memory entrypoints = new uint256[](1);
             // 0 outputs.
-            entrypoints_[SourceIndex.unwrap(BEFORE_ARB_SOURCE_INDEX)] = BEFORE_ARB_MIN_OUTPUTS;
+            entrypoints[SourceIndex.unwrap(BEFORE_ARB_SOURCE_INDEX)] = BEFORE_ARB_MIN_OUTPUTS;
             // We have to trust the deployer because it produces the expression
             // address for the dispatch anyway.
             // All external functions on this contract have `onlyNotInitializing`
             // modifier on them so can't be reentered here anyway.
             //slither-disable-next-line reentrancy-benign
-            (interpreter, store, expression_) = config_.evaluableConfig.deployer.deployExpression(
-                config_.evaluableConfig.sources, config_.evaluableConfig.constants, entrypoints_
+            (sI9r, sI9rStore, expression) = config.evaluableConfig.deployer.deployExpression(
+                config.evaluableConfig.sources, config.evaluableConfig.constants, entrypoints
             );
-            dispatch = LibEncodedDispatch.encode(expression_, BEFORE_ARB_SOURCE_INDEX, BEFORE_ARB_MAX_OUTPUTS);
+            sI9rDispatch = LibEncodedDispatch.encode(expression, BEFORE_ARB_SOURCE_INDEX, BEFORE_ARB_MAX_OUTPUTS);
         }
     }
 
@@ -119,32 +119,32 @@ contract OrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, Reentran
     }
 
     ///slither-disable-next-line dead-code
-    function _exchange(TakeOrdersConfig memory takeOrders_, bytes memory data_) internal virtual {}
+    function _exchange(TakeOrdersConfig memory takeOrders, bytes memory data) internal virtual {}
 
     /// @inheritdoc IERC3156FlashBorrower
-    function onFlashLoan(address initiator_, address, uint256, uint256, bytes calldata data_)
+    function onFlashLoan(address initiator, address, uint256, uint256, bytes calldata data)
         external
         onlyNotInitializing
         returns (bytes32)
     {
-        if (msg.sender != address(orderBook)) {
+        if (msg.sender != address(sOrderBook)) {
             revert BadLender(msg.sender);
         }
-        if (initiator_ != address(this)) {
-            revert BadInitiator(initiator_);
+        if (initiator != address(this)) {
+            revert BadInitiator(initiator);
         }
 
-        (TakeOrdersConfig memory takeOrders_, bytes memory exchangeData_) = abi.decode(data_, (TakeOrdersConfig, bytes));
+        (TakeOrdersConfig memory takeOrders, bytes memory exchangeData) = abi.decode(data, (TakeOrdersConfig, bytes));
 
-        exchange(takeOrders_, exchangeData_);
+        _exchange(takeOrders, exchangeData);
 
         // At this point `exchange` should have sent the tokens required to match
         // the orders so take orders now.
         // We don't do anything with the total input/output amounts here because
         // the flash loan itself will take back what it needs, and we simply
         // keep anything left over according to active balances.
-        (uint256 totalInput_, uint256 totalOutput_) = orderBook.takeOrders(takeOrders_);
-        (totalInput_, totalOutput_);
+        (uint256 totalInput, uint256 totalOutput) = sOrderBook.takeOrders(takeOrders);
+        (totalInput, totalOutput);
 
         return ON_FLASH_LOAN_CALLBACK_SUCCESS;
     }
@@ -157,58 +157,58 @@ contract OrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, Reentran
     /// onchain and offchain responsibilities related to the transaction.
     /// `ZeroExOrderBookFlashBorrower` only provides the necessary logic to
     /// faciliate the flash loan, external trade and repayment.
-    /// @param takeOrders_ As per `IOrderBookV2.takeOrders`.
-    /// @param minimumSenderOutput_ The minimum output that must be sent to the sender
+    /// @param takeOrders As per `IOrderBookV2.takeOrders`.
+    /// @param minimumSenderOutput The minimum output that must be sent to the sender
     /// by the end of the arb call.
-    function arb(TakeOrdersConfig calldata takeOrders_, uint256 minimumSenderOutput_, bytes calldata exchangeData_)
+    function arb(TakeOrdersConfig calldata takeOrders, uint256 minimumSenderOutput, bytes calldata exchangeData)
         external
         nonReentrant
         onlyNotInitializing
     {
         // This data needs to be encoded so that it can be passed to the
         // `onFlashLoan` callback.
-        bytes memory data_ = abi.encode(takeOrders_, exchangeData_);
+        bytes memory data = abi.encode(takeOrders, exchangeData);
         // The token we receive from taking the orders is what we will use to
         // repay the flash loan.
-        address flashLoanToken_ = takeOrders_.input;
+        address flashLoanToken = takeOrders.input;
         // We can't repay more than the minimum that the orders are going to
         // give us and there's no reason to borrow less.
-        uint256 flashLoanAmount_ = takeOrders_.minimumInput;
+        uint256 flashLoanAmount = takeOrders.minimumInput;
 
-        EncodedDispatch dispatch_ = dispatch;
-        if (EncodedDispatch.unwrap(dispatch_) > 0) {
-            (uint256[] memory stack_, uint256[] memory kvs_) = interpreter.eval(
-                store,
+        EncodedDispatch dispatch = sI9rDispatch;
+        if (EncodedDispatch.unwrap(dispatch) > 0) {
+            (uint256[] memory stack, uint256[] memory kvs) = sI9r.eval(
+                sI9rStore,
                 DEFAULT_STATE_NAMESPACE,
-                dispatch_,
+                dispatch,
                 LibContext.build(new uint256[][](0), new SignedContextV1[](0))
             );
-            require(stack_.length == 0);
-            if (kvs_.length > 0) {
-                store.set(DEFAULT_STATE_NAMESPACE, kvs_);
+            require(stack.length == 0);
+            if (kvs.length > 0) {
+                sI9rStore.set(DEFAULT_STATE_NAMESPACE, kvs);
             }
         }
 
         // This is overkill to infinite approve every time.
         // @todo make this hammer smaller.
-        IERC20(takeOrders_.output).safeApprove(address(orderBook), type(uint256).max);
+        IERC20(takeOrders.output).safeApprove(address(sOrderBook), type(uint256).max);
 
-        if (!orderBook.flashLoan(this, flashLoanToken_, flashLoanAmount_, data_)) {
+        if (!sOrderBook.flashLoan(this, flashLoanToken, flashLoanAmount, data)) {
             revert FlashLoanFailed();
         }
 
         // Send all unspent input tokens to the sender.
-        uint256 inputBalance_ = IERC20(takeOrders_.input).balanceOf(address(this));
-        if (inputBalance_ > 0) {
-            IERC20(takeOrders_.input).safeTransfer(msg.sender, inputBalance_);
+        uint256 inputBalance = IERC20(takeOrders.input).balanceOf(address(this));
+        if (inputBalance > 0) {
+            IERC20(takeOrders.input).safeTransfer(msg.sender, inputBalance);
         }
         // Send all unspent output tokens to the sender.
-        uint256 outputBalance_ = IERC20(takeOrders_.output).balanceOf(address(this));
-        if (outputBalance_ < minimumSenderOutput_) {
-            revert MinimumOutput(minimumSenderOutput_, outputBalance_);
+        uint256 outputBalance = IERC20(takeOrders.output).balanceOf(address(this));
+        if (outputBalance < minimumSenderOutput) {
+            revert MinimumOutput(minimumSenderOutput, outputBalance);
         }
-        if (outputBalance_ > 0) {
-            IERC20(takeOrders_.output).safeTransfer(msg.sender, outputBalance_);
+        if (outputBalance > 0) {
+            IERC20(takeOrders.output).safeTransfer(msg.sender, outputBalance);
         }
 
         // Send all unspent 0x protocol fees to the sender.
