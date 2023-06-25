@@ -1,3 +1,5 @@
+Deprecated repo, merged with https://github.com/rainprotocol/rain.orderbook
+
 # foundry.template
 
 Docs at https://rainprotocol.github.io/foundry.template
