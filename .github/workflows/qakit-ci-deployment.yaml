@@ -6,7 +6,7 @@ jobs:
     strategy:
       matrix:
         contract: [
-          "src/ZeroExOrderBookFlashBorrower.sol:ZeroExOrderBookFlashBorrower"
+          "src/concrete/GenericPoolOrderBookFlashBorrower.sol:GenericPoolOrderBookFlashBorrower"
         ]
     runs-on: ubuntu-latest
     steps:
@@ -21,7 +21,7 @@ jobs:
         env:
           PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
         run: cast wallet address "${PRIVATE_KEY}"
-      - name: Forge deploy contract to mumbai(wip)
+      - name: Forge deploy contract to mumbai
         env:
           CI_DEPLOY_RPC_URL: ${{ secrets.CI_DEPLOY_RPC_URL }}
           PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}

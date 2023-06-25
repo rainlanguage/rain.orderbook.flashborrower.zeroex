@@ -10,10 +10,3 @@ optimizer = true
 optimizer_runs = 100000
 
 fuzz.runs = 1024
-
-# Too many false positives on OZ deps.
-# [profile.default.model_checker]
-# contracts = {'src/ZeroExOrderBookFlashBorrower.sol' = ['ZeroExOrderBookFlashBorrower']}
-# engine = 'chc'
-# timeout = 10000
-# targets = ['assert', 'underflow', 'overflow', 'divByZero', 'constantCondition', 'popEmptyArray', 'outOfBounds']
