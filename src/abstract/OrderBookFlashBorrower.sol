@@ -30,22 +30,36 @@ error Initializing();
 error SwapFailed();
 
 /// Thrown when the minimum output for the sender is not met after the arb.
+/// @param minimum The minimum output expected by the sender.
+/// @param actual The actual output that would be received by the sender.
 error MinimumOutput(uint256 minimum, uint256 actual);
 
+/// Thrown when the stack is not empty after the access control dispatch.
+error NonZeroBeforeArbStack();
+
+/// Config for `OrderBookFlashBorrower` to initialize.
+/// @param orderBook The `OrderBook` contract to arb against.
+/// @param evaluableConfig The config to eval for access control to arb.
+/// @param implementationData Arbitrary bytes to pass to the implementation in
+/// the `beforeInitialize` hook.
 struct OrderBookFlashBorrowerConfig {
     address orderBook;
     EvaluableConfig evaluableConfig;
     bytes implementationData;
 }
 
+/// @dev "Before arb" is evaluated before the flash loan is taken. Ostensibly
+/// allows for some kind of access control to the arb.
 SourceIndex constant BEFORE_ARB_SOURCE_INDEX = SourceIndex.wrap(0);
+/// @dev "Before arb" has no outputs.
 uint256 constant BEFORE_ARB_MIN_OUTPUTS = 0;
+/// @dev "Before arb" has no outputs.
 uint16 constant BEFORE_ARB_MAX_OUTPUTS = 0;
 
 /// @title OrderBookFlashBorrower
-/// @notice Base contract that liq-source specifialized contracts can extend to
-/// provide flash loan based arbitrage against external liquidity sources to fill
-/// orderbook orders.
+/// @notice Abstract contract that liq-source specifialized contracts can inherit
+/// to provide flash loan based arbitrage against external liquidity sources to
+/// fill orderbook orders.
 ///
 /// For example consider a simple order:
 ///
@@ -62,21 +76,38 @@ uint16 constant BEFORE_ARB_MAX_OUTPUTS = 0;
 /// - Sell the 100 USDT for 102 DAI on external liq
 /// - Take the order, giving 101 DAI and paying down 100 USDT loan
 /// - Keep 1 DAI profit
-contract OrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV2, ReentrancyGuard, Initializable {
+///
+/// As this contract is expected to be cloned using a minimal proxy there will
+/// be many copies of it in the wild. Each copy can be access gated by a Rain
+/// expression that is evaluated before anything else happens in `arb`. There
+/// are many reasons why this might be desirable:
+/// - Regulatory reasons that restrict how an arb bot operator can interact with
+///   orders and/or external liq.
+/// - The arb operator wants to attempt to prevent front running by other bots.
+/// - The arb operator may prefer a dedicated instance of the contract to make
+///   it easier to track profits, etc.
+abstract contract OrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV2, ReentrancyGuard, Initializable {
     using Address for address;
     using SafeERC20 for IERC20;
 
+    /// Emitted when the contract is initialized. Contains the
+    /// OrderBookFlashBorrowerConfig struct to ensure the type appears in the
+    /// ABI.
     event Initialize(address sender, OrderBookFlashBorrowerConfig config);
 
     /// `OrderBook` contract to lend and arb against.
     IOrderBookV2 public sOrderBook;
 
-    IInterpreterV1 public sI9r;
-    IInterpreterStoreV1 public sI9rStore;
+    /// The encoded dispatch that will run for access control to `arb`.
     EncodedDispatch public sI9rDispatch;
+    /// The interpreter that will eval access control to `arb`.
+    IInterpreterV1 public sI9r;
+    /// The associated store for the interpreter.
+    IInterpreterStoreV1 public sI9rStore;
 
-    /// Initialize immutable contracts to arb and trade against.
     constructor() {
+        // Arb contracts are expected to be cloned proxies so allowing
+        // initialization of the implementation is a security risk.
         _disableInitializers();
     }
 
@@ -85,20 +116,27 @@ contract OrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV2, Reentran
     /// @param data Arbitrary bytes the child may use to initialize.
     function _beforeInitialize(bytes memory data) internal virtual {}
 
-    /// Standard initialization as
+    /// @inheritdoc ICloneableV2
     function initialize(bytes memory data) external initializer nonReentrant returns (bytes32) {
         (OrderBookFlashBorrowerConfig memory config) = abi.decode(data, (OrderBookFlashBorrowerConfig));
+
+        // Dispatch the hook before any external calls are made.
         _beforeInitialize(config.implementationData);
 
+        // @todo This could be paramaterised on `arb`.
         sOrderBook = IOrderBookV2(config.orderBook);
 
+        // Emit events before any external calls are made.
         emit Initialize(msg.sender, config);
 
+        // If there are sources to eval then initialize the dispatch, otherwise
+        // it will remain 0 and we can skip evaluation on `arb`.
         if (config.evaluableConfig.sources.length > 0 && config.evaluableConfig.sources[0].length > 0) {
             address expression;
+
             uint256[] memory entrypoints = new uint256[](1);
-            // 0 outputs.
             entrypoints[SourceIndex.unwrap(BEFORE_ARB_SOURCE_INDEX)] = BEFORE_ARB_MIN_OUTPUTS;
+
             // We have to trust the deployer because it produces the expression
             // address for the dispatch anyway.
             // All external functions on this contract have `onlyNotInitializing`
@@ -113,6 +151,7 @@ contract OrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV2, Reentran
         return ICLONEABLE_V2_SUCCESS;
     }
 
+    /// Ensure the contract is not initializing.
     modifier onlyNotInitializing() {
         if (_isInitializing()) {
             revert Initializing();
@@ -120,8 +159,15 @@ contract OrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV2, Reentran
         _;
     }
 
-    ///slither-disable-next-line dead-code
-    function _exchange(TakeOrdersConfig memory takeOrders, bytes memory data) internal virtual {}
+    /// Hook that inheriting contracts MUST implement in order to achieve
+    /// anything other than raising the ambient temperature of the room.
+    /// `_exchange` is responsible for converting the flash loaned assets into
+    /// the assets required to fill the orders. Generally this can only be
+    /// achieved by interacting with an external liquidity source that is
+    /// offering a better price than the orders require.
+    /// @param takeOrders As per `arb`.
+    /// @param exchangeData As per `arb`.
+    function _exchange(TakeOrdersConfig memory takeOrders, bytes memory exchangeData) internal virtual {}
 
     /// @inheritdoc IERC3156FlashBorrower
     function onFlashLoan(address initiator, address, uint256, uint256, bytes calldata data)
@@ -129,15 +175,19 @@ contract OrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV2, Reentran
         onlyNotInitializing
         returns (bytes32)
     {
+        // As per reference implementation.
         if (msg.sender != address(sOrderBook)) {
             revert BadLender(msg.sender);
         }
+        // As per reference implementation.
         if (initiator != address(this)) {
             revert BadInitiator(initiator);
         }
 
         (TakeOrdersConfig memory takeOrders, bytes memory exchangeData) = abi.decode(data, (TakeOrdersConfig, bytes));
 
+        // Dispatch the `_exchange` hook to ensure we have the correct asset
+        // type and amount to fill the orders.
         _exchange(takeOrders, exchangeData);
 
         // At this point `exchange` should have sent the tokens required to match
@@ -151,24 +201,40 @@ contract OrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV2, Reentran
         return ON_FLASH_LOAN_CALLBACK_SUCCESS;
     }
 
-    /// Anon can call the `arb` function with the orders to take on the
-    /// `OrderBook` side and the 0x data required to provide the external
-    /// liquidity to complete the trade. Any profits will be forwarded to
-    /// `msg.sender` at the completion of the arbitrage. The `msg.sender` is
-    /// responsible for all matchmaking, gas, 0x interactions and other
-    /// onchain and offchain responsibilities related to the transaction.
-    /// `ZeroExOrderBookFlashBorrower` only provides the necessary logic to
-    /// faciliate the flash loan, external trade and repayment.
+    /// Primary function to process arbitrage opportunities.
+    /// Firstly the access gate is evaluated to ensure the sender is allowed to
+    /// submit arbitrage. If there is no access control the sender should expect
+    /// to be front run on the arb for any sufficiently profitable opportunity.
+    /// This may be desirable in some cases, as the sender may simply want to
+    /// be clearing the orderbook and they are expecting profit/utility from the
+    /// orderbook strategies themselves somehow.
+    ///
+    /// Secondly the flash loan is taken and the `_exchange` hook is called to
+    /// allow the inheriting contract to convert the flash loaned assets into
+    /// the assets required to fill the orders.
+    ///
+    /// Finally the orders are taken and the remaining assets are sent to the
+    /// sender.
+    ///
     /// @param takeOrders As per `IOrderBookV2.takeOrders`.
-    /// @param minimumSenderOutput The minimum output that must be sent to the sender
-    /// by the end of the arb call.
+    /// @param minimumSenderOutput The minimum output that must be sent to the
+    /// sender by the end of the arb call. This, in combination with the
+    /// orderbook's own asset handling, is expected to REPLACE the standard
+    /// slippage protection that would be provided by a DEX. The sender is
+    /// expected to calculate absolute values based on prevailing conditions
+    /// such as gas price and the risk of holding the assets any arb profit is
+    /// denominated in.
+    /// @param exchangeData Arbitrary bytes that will be passed to `_exchange`
+    /// after the flash loan is taken. The inheriting contract is responsible
+    /// for decoding this data and defining how it controls interactions with
+    /// the external liquidity. For example, `GenericPoolOrderBookFlashBorrower`
+    /// uses this data as a literal encoded external call.
     function arb(TakeOrdersConfig calldata takeOrders, uint256 minimumSenderOutput, bytes calldata exchangeData)
         external
         nonReentrant
         onlyNotInitializing
     {
-        // This data needs to be encoded so that it can be passed to the
-        // `onFlashLoan` callback.
+        // Encode everything that will be used by the flash loan callback.
         bytes memory data = abi.encode(takeOrders, exchangeData);
         // The token we receive from taking the orders is what we will use to
         // repay the flash loan.
@@ -177,6 +243,7 @@ contract OrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV2, Reentran
         // give us and there's no reason to borrow less.
         uint256 flashLoanAmount = takeOrders.minimumInput;
 
+        // Run the access control dispatch if it is set.
         EncodedDispatch dispatch = sI9rDispatch;
         if (EncodedDispatch.unwrap(dispatch) > 0) {
             (uint256[] memory stack, uint256[] memory kvs) = sI9r.eval(
@@ -185,19 +252,25 @@ contract OrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV2, Reentran
                 dispatch,
                 LibContext.build(new uint256[][](0), new SignedContextV1[](0))
             );
-            require(stack.length == 0);
+            // This can only happen if the interpreter is broken.
+            if (stack.length > 0) {
+                revert NonZeroBeforeArbStack();
+            }
+            // Persist any state changes from the expression.
             if (kvs.length > 0) {
                 sI9rStore.set(DEFAULT_STATE_NAMESPACE, kvs);
             }
         }
 
-        // This is overkill to infinite approve every time.
-        // @todo make this hammer smaller.
+        // Take the flash loan, which will in turn call `onFlashLoan`, which is
+        // expected to process an exchange against external liq to pay back the
+        // flash loan, cover the orders and remain in profit.
+        IERC20(takeOrders.output).safeApprove(address(sOrderBook), 0);
         IERC20(takeOrders.output).safeApprove(address(sOrderBook), type(uint256).max);
-
         if (!sOrderBook.flashLoan(this, flashLoanToken, flashLoanAmount, data)) {
             revert FlashLoanFailed();
         }
+        IERC20(takeOrders.output).safeApprove(address(sOrderBook), 0);
 
         // Send all unspent input tokens to the sender.
         uint256 inputBalance = IERC20(takeOrders.input).balanceOf(address(this));
@@ -213,17 +286,12 @@ contract OrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV2, Reentran
             IERC20(takeOrders.output).safeTransfer(msg.sender, outputBalance);
         }
 
-        // Send all unspent 0x protocol fees to the sender.
-        // Slither false positive here. This is near verbatim from the reference
-        // implementation. We want to send everything to the sender because the
-        // borrower contract should be empty of all gas and tokens between uses.
-        // Issue also seems related https://github.com/crytic/slither/issues/1658
-        // as here we assume all balances of `ZeroExOrderBookFlashBorrower` were
-        // first either sent by `msg.sender` or the result of a successful arb
-        // via. the `flashLoan` call above.
-        // If for some strange reason you send tokens or ETH directly to this
-        // contract other than for the intended purpose, expect your funds to be
-        // immediately drained by the next caller.
+        // Send any remaining gas to the sender.
+        // Slither false positive here. We want to send everything to the sender
+        // because the borrower contract should be empty of all gas and tokens
+        // between uses. Anyone who sends tokens or gas to an arb contract
+        // without calling `arb` is going to lose their tokens/gas.
+        // See https://github.com/crytic/slither/issues/1658
         Address.sendValue(payable(msg.sender), address(this).balance);
     }
 }

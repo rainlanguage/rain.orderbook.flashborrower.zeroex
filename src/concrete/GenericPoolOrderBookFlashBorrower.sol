@@ -4,7 +4,7 @@ pragma solidity =0.8.18;
 import "rain.orderbook/src/interface/ierc3156/IERC3156FlashLender.sol";
 import "rain.orderbook/src/interface/ierc3156/IERC3156FlashBorrower.sol";
 
-import "./OrderBookFlashBorrower.sol";
+import "src/abstract/OrderBookFlashBorrower.sol";
 
 contract GenericPoolOrderBookFlashBorrower is OrderBookFlashBorrower {
     using SafeERC20 for IERC20;

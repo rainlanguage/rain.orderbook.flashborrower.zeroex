@@ -2,7 +2,7 @@
 pragma solidity =0.8.18;
 
 import "forge-std/Test.sol";
-import "../src/GenericPoolOrderBookFlashBorrower.sol";
+import "src/concrete/GenericPoolOrderBookFlashBorrower.sol";
 import "openzeppelin-contracts/contracts/proxy/Clones.sol";
 import "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import "rain.orderbook/src/interface/IOrderBookV2.sol";
