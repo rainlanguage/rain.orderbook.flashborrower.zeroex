@@ -8,7 +8,7 @@ import {ReentrancyGuard} from "openzeppelin-contracts/contracts/security/Reentra
 import {Initializable} from "openzeppelin-contracts/contracts/proxy/utils/Initializable.sol";
 
 import "rain.orderbook/src/interface/IOrderBookV2.sol";
-import "rain.factory/interface/ICloneableV1.sol";
+import "rain.factory/src/interface/ICloneableV2.sol";
 import "rain.interpreter/lib/LibEncodedDispatch.sol";
 import "rain.interpreter/lib/LibContext.sol";
 
@@ -62,7 +62,7 @@ uint16 constant BEFORE_ARB_MAX_OUTPUTS = 0;
 /// - Sell the 100 USDT for 102 DAI on external liq
 /// - Take the order, giving 101 DAI and paying down 100 USDT loan
 /// - Keep 1 DAI profit
-contract OrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, ReentrancyGuard, Initializable {
+contract OrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV2, ReentrancyGuard, Initializable {
     using Address for address;
     using SafeERC20 for IERC20;
 
@@ -86,7 +86,7 @@ contract OrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, Reentran
     function _beforeInitialize(bytes memory data) internal virtual {}
 
     /// Standard initialization as
-    function initialize(bytes memory data) external initializer nonReentrant {
+    function initialize(bytes memory data) external initializer nonReentrant returns (bytes32) {
         (OrderBookFlashBorrowerConfig memory config) = abi.decode(data, (OrderBookFlashBorrowerConfig));
         _beforeInitialize(config.implementationData);
 
@@ -109,6 +109,8 @@ contract OrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV1, Reentran
             );
             sI9rDispatch = LibEncodedDispatch.encode(expression, BEFORE_ARB_SOURCE_INDEX, BEFORE_ARB_MAX_OUTPUTS);
         }
+
+        return ICLONEABLE_V2_SUCCESS;
     }
 
     modifier onlyNotInitializing() {
