@@ -6,7 +6,7 @@ jobs:
     strategy:
       matrix:
         contract: [
-          "src/GenericPoolOrderBookFlashBorrower.sol:GenericPoolOrderBookFlashBorrower"
+          "src/concrete/GenericPoolOrderBookFlashBorrower.sol:GenericPoolOrderBookFlashBorrower"
         ]
     runs-on: ubuntu-latest
     steps:
