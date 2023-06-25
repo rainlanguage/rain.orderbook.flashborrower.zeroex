@@ -114,6 +114,7 @@ abstract contract OrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV2,
     /// Hook called before initialize happens. Inheriting contracts can perform
     /// internal state maintenance before any external contract calls are made.
     /// @param data Arbitrary bytes the child may use to initialize.
+    //slither-disable-next-line dead-code
     function _beforeInitialize(bytes memory data) internal virtual {}
 
     /// @inheritdoc ICloneableV2
@@ -167,6 +168,7 @@ abstract contract OrderBookFlashBorrower is IERC3156FlashBorrower, ICloneableV2,
     /// offering a better price than the orders require.
     /// @param takeOrders As per `arb`.
     /// @param exchangeData As per `arb`.
+    //slither-disable-next-line dead-code
     function _exchange(TakeOrdersConfig memory takeOrders, bytes memory exchangeData) internal virtual {}
 
     /// @inheritdoc IERC3156FlashBorrower
