@@ -7,12 +7,12 @@ import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/Safe
 import {ReentrancyGuard} from "openzeppelin-contracts/contracts/security/ReentrancyGuard.sol";
 import {Initializable} from "openzeppelin-contracts/contracts/proxy/utils/Initializable.sol";
 
-import "rain.interface.orderbook/ierc3156/IERC3156FlashLender.sol";
-import "rain.interface.orderbook/ierc3156/IERC3156FlashBorrower.sol";
-import "rain.interface.orderbook/IOrderBookV2.sol";
-import "rain.interface.factory/ICloneableV1.sol";
-import "rain.interface.interpreter/LibEncodedDispatch.sol";
-import "rain.interface.interpreter/LibContext.sol";
+import "rain.orderbook/src/interface/ierc3156/IERC3156FlashLender.sol";
+import "rain.orderbook/src/interface/ierc3156/IERC3156FlashBorrower.sol";
+import "rain.orderbook/src/interface/IOrderBookV2.sol";
+import "rain.factory/interface/ICloneableV1.sol";
+import "rain.interpreter/lib/LibEncodedDispatch.sol";
+import "rain.interpreter/lib/LibContext.sol";
 
 /// Thrown when the lender is not the trusted `OrderBook`.
 /// @param badLender The untrusted lender calling `onFlashLoan`.
