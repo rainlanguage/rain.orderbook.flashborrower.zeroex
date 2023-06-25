@@ -22,7 +22,8 @@ contract GenericPoolOrderBookFlashBorrower is OrderBookFlashBorrower {
 
     /// @inheritdoc OrderBookFlashBorrower
     function _exchange(TakeOrdersConfig memory takeOrders, bytes memory exchangeData) internal virtual override {
-        (address spender, address pool, bytes memory encodedFunctionCall) = abi.decode(exchangeData, (address, address, bytes));
+        (address spender, address pool, bytes memory encodedFunctionCall) =
+            abi.decode(exchangeData, (address, address, bytes));
 
         IERC20(takeOrders.input).safeApprove(spender, 0);
         IERC20(takeOrders.input).safeApprove(spender, type(uint256).max);
