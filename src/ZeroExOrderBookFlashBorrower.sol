@@ -37,14 +37,19 @@ error MinimumOutput(uint256 minimum, uint256 actual);
 /// Construction config for `ZeroExOrderBookFlashBorrower`
 /// @param orderBook `OrderBook` contract to lend and arb against.
 /// @param zeroExExchangeProxy 0x exchange proxy as per reference implementation.
+/// @param evaluableConfig Config for the eval that access gates the arb.
 struct ZeroExOrderBookFlashBorrowerConfig {
     address orderBook;
     address zeroExExchangeProxy;
     EvaluableConfig evaluableConfig;
 }
 
+/// "Before arb" is called before the arb is executed to allow for any access
+/// restrictions.
 SourceIndex constant BEFORE_ARB_SOURCE_INDEX = SourceIndex.wrap(0);
+/// "Before arb" has no outputs.
 uint256 constant BEFORE_ARB_MIN_OUTPUTS = 0;
+/// "Before arb" has no outputs.
 uint16 constant BEFORE_ARB_MAX_OUTPUTS = 0;
 
 /// @title ZeroExOrderBookFlashBorrower
